@@ -81,6 +81,22 @@ def test_internvl2_phi3():
     _infer_model(pt_engine, system='')
 
 
+def test_internvl3_8b():
+    pt_engine = PtEngine('OpenGVLab/InternVL3-8B')
+    response = _infer_model(pt_engine)
+    pt_engine.default_template.template_backend = 'jinja'
+    response2 = _infer_model(pt_engine, system='你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大语言模型。')
+    assert response == response2
+
+
+def test_internvl3_9b():
+    pt_engine = PtEngine('OpenGVLab/InternVL3-9B')
+    response = _infer_model(pt_engine)
+    pt_engine.default_template.template_backend = 'jinja'
+    response2 = _infer_model(pt_engine, system='你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大语言模型。')
+    assert response == response2
+
+
 def test_llava():
     pt_engine = PtEngine('AI-ModelScope/llava-v1.6-mistral-7b')
     _infer_model(pt_engine)
@@ -493,10 +509,11 @@ def test_phi4_vision():
 
 def test_gemma3_vision():
     pt_engine = PtEngine('LLM-Research/gemma-3-4b-it')
-    response = _infer_model(pt_engine)
+    response = _infer_model(pt_engine, messages=[{'role': 'user', 'content': '<image>Describe this image in detail.'}])
     pt_engine.default_template.template_backend = 'jinja'
-    response2 = _infer_model(pt_engine)
-    assert response == response2
+    response2 = _infer_model(pt_engine, messages=[{'role': 'user', 'content': '<image>Describe this image in detail.'}])
+    assert response[:80] == response2[:80] == (
+        "Here's a detailed description of the image:\n\n**Overall Impression:**\n\nThe image ")
 
 
 def test_mistral_2503():
@@ -521,8 +538,20 @@ def test_llama4():
                               'a realistic depiction of a kitten, while') and len(response) == 654
 
 
+def test_kimi_vl():
+    pt_engine = PtEngine('moonshotai/Kimi-VL-A3B-Instruct')
+    messages = [{'role': 'user', 'content': '<image><image>What is the difference between the two images?'}]
+    images = [
+        'http://modelscope-open.oss-cn-hangzhou.aliyuncs.com/images/cat.png',
+        'http://modelscope-open.oss-cn-hangzhou.aliyuncs.com/images/animal.png'
+    ]
+    response = _infer_model(pt_engine, messages=messages, images=images)
+    assert response == ('The first image is a close-up of a kitten with a blurred background, '
+                        'while the second image is a cartoon of four sheep standing in a field.')
+
+
 if __name__ == '__main__':
-    from swift.llm import PtEngine, RequestConfig, get_template
+    from swift.llm import PtEngine, RequestConfig
     from swift.utils import get_logger, seed_everything
 
     logger = get_logger()
@@ -568,6 +597,9 @@ if __name__ == '__main__':
     # test_minicpmo()
     # test_valley()
     # test_ui_tars()
-    # test_gemma3_vision()
+    test_gemma3_vision()
     # test_mistral_2503()
-    test_llama4()
+    # test_llama4()
+    # test_internvl3_8b()
+    # test_internvl3_9b()
+    # test_kimi_vl()
