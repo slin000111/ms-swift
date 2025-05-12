@@ -63,6 +63,10 @@ class SwiftMixin:
                  optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
                  preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
                  **kwargs) -> None:
+        if not hasattr(train_dataset, '__len__') and args.dataloader_num_workers > 1:
+            args.dataloader_num_workers = 1
+            logger.warning('Using IterableDataset, setting args.dataloader_num_workers to 1.')
+
         if args.check_model and hasattr(model, 'model_dir'):
             from swift.utils.logger import ms_logger_ignore_error
             with ms_logger_ignore_error():
@@ -311,11 +315,20 @@ class SwiftMixin:
 
     def train(self, *args, **kwargs):
         if self.model_meta.is_multimodal:
-            models = list(
-                set([
-                    v for k, v in self.__dict__.items()
-                    if isinstance(v, nn.Module) and k in {'model', 'ref_model', 'reward_model', 'value_model'}
-                ]))
+            models = []
+            for model_name in ['model', 'ref_model', 'value_model']:
+                model = getattr(self, model_name, None)
+                if isinstance(model, nn.Module):
+                    models.append(model)
+
+            reward_model = getattr(self, 'reward_model', None)
+            if reward_model is not None:
+                if isinstance(reward_model, list):
+                    models.extend([m for m in reward_model if isinstance(m, nn.Module)])
+                elif isinstance(reward_model, nn.Module):
+                    models.append(reward_model)
+
+            models = list(set(models))  # Deduplicate
             self.template.register_post_encode_hook(models)
             logger.info(f'Successfully registered post_encode hook: {[model.__class__.__name__ for model in models]}.')
         self._save_initial_model(self.args.output_dir)
@@ -441,8 +454,12 @@ class SwiftMixin:
         res = super().get_batch_samples(*args, **kwargs)
         if self.template.sequence_parallel_size == 1:
             return res
+
         batch_samples, num_items_in_batch = res
-        dist.all_reduce(num_items_in_batch, dist.ReduceOp.SUM)
+        if num_items_in_batch is None:
+            num_items_in_batch = torch.tensor(0).to(args[2])
+        from swift.trainers.sequence_parallel import sequence_parallel
+        dist.all_reduce(num_items_in_batch, dist.ReduceOp.SUM, sequence_parallel.sp_group)
         return batch_samples, num_items_in_batch
 
 
@@ -479,7 +496,7 @@ class DataLoaderMixin:
                 dataloader = DataLoaderShard(train_dataset, batch_sampler, **dataloader_params)
             else:
                 # IterableDataset
-                if dist.is_initialized():
+                if dist.is_initialized() and dataloader_params['prefetch_factor']:
                     dataloader_params['prefetch_factor'] = dataloader_params['prefetch_factor'] * dist.get_world_size()
                 dataloader = DataLoader(train_dataset, batch_size=self._train_batch_size, **dataloader_params)
                 dataloader = DataLoaderDispatcher(dataloader)
