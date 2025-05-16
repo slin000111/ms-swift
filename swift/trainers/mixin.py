@@ -328,7 +328,7 @@ class SwiftMixin:
                 elif isinstance(reward_model, nn.Module):
                     models.append(reward_model)
 
-            models = list(set(models))  # Deduplicate
+            models = list(set(self.accelerator.unwrap_model(model) for model in models))  # Deduplicate
             self.template.register_post_encode_hook(models)
             logger.info(f'Successfully registered post_encode hook: {[model.__class__.__name__ for model in models]}.')
         self._save_initial_model(self.args.output_dir)
@@ -493,13 +493,13 @@ class DataLoaderMixin:
             if hasattr(train_dataset, '__len__'):
                 batch_sampler = BatchSamplerShard(
                     len(train_dataset), batch_size=self._train_batch_size, **batch_sampler_params)
-                dataloader = DataLoaderShard(train_dataset, batch_sampler, **dataloader_params)
+                dataloader = DataLoaderShard(train_dataset, batch_sampler, self.accelerator.device, **dataloader_params)
             else:
                 # IterableDataset
                 if dist.is_initialized() and dataloader_params['prefetch_factor']:
                     dataloader_params['prefetch_factor'] = dataloader_params['prefetch_factor'] * dist.get_world_size()
                 dataloader = DataLoader(train_dataset, batch_size=self._train_batch_size, **dataloader_params)
-                dataloader = DataLoaderDispatcher(dataloader)
+                dataloader = DataLoaderDispatcher(dataloader, self.accelerator.device)
 
         return dataloader
 
