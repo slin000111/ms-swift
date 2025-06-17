@@ -7,20 +7,21 @@ import gradio as gr
 from swift.llm import RLHFArguments
 from swift.llm.argument.base_args.base_args import get_supported_tuners
 from swift.ui.base import BaseUI
-from swift.ui.llm_grpo.grpo_advanced import GRPOAdvanced
-from swift.ui.llm_grpo.model import Model
+from swift.ui.llm_grpo.advanced import GRPOAdvanced
+from swift.ui.llm_grpo.dataset import GRPODataset
+from swift.ui.llm_grpo.grpo_advanced import GrpoAdvanced
+from swift.ui.llm_grpo.hyper import GRPOHyper
+from swift.ui.llm_grpo.model import GRPOModel
+from swift.ui.llm_grpo.optimizer import GRPOOptimizer
+from swift.ui.llm_grpo.quantization import GRPOQuantization
 from swift.ui.llm_grpo.ref_model import RefModel
+from swift.ui.llm_grpo.report_to import GRPOReportTo
 from swift.ui.llm_grpo.reward import Reward
 from swift.ui.llm_grpo.rollout import Rollout
-from swift.ui.llm_train.advanced import Advanced
-from swift.ui.llm_train.dataset import Dataset
-from swift.ui.llm_train.hyper import Hyper
+from swift.ui.llm_grpo.runtime import GRPORuntime
+from swift.ui.llm_grpo.save import GRPOSave
+from swift.ui.llm_grpo.tuner import Tuner
 from swift.ui.llm_train.llm_train import LLMTrain
-from swift.ui.llm_train.lora import LoRA
-from swift.ui.llm_train.quantization import Quantization
-from swift.ui.llm_train.report_to import ReportTo
-from swift.ui.llm_train.runtime import Runtime
-from swift.ui.llm_train.save import Save
 from swift.utils import get_device_count, get_logger
 
 logger = get_logger()
@@ -30,19 +31,20 @@ class LLMGRPO(LLMTrain):
     group = 'llm_grpo'
 
     sub_ui = [
-        Model,
-        Dataset,
+        GRPOModel,
+        GRPODataset,
         Reward,
-        Runtime,
+        GRPORuntime,
         Rollout,
-        Save,
-        LoRA,
-        Hyper,
-        Quantization,
-        Advanced,
-        RefModel,
+        GRPOSave,
+        Tuner,
+        GRPOOptimizer,
+        GRPOHyper,
+        GRPOQuantization,
         GRPOAdvanced,
-        ReportTo,
+        RefModel,
+        GrpoAdvanced,
+        GRPOReportTo,
     ]
 
     locale_dict: Dict[str, Dict] = {
@@ -185,8 +187,8 @@ class LLMGRPO(LLMTrain):
             if device_count > 0:
                 default_device = '0'
             with gr.Blocks():
-                Model.build_ui(base_tab)
-                Dataset.build_ui(base_tab)
+                GRPOModel.build_ui(base_tab)
+                GRPODataset.build_ui(base_tab)
                 Reward.build_ui(base_tab)
                 with gr.Accordion(elem_id='train_param', open=True):
                     with gr.Row():
@@ -197,10 +199,10 @@ class LLMGRPO(LLMTrain):
                     with gr.Row():
                         gr.Checkbox(elem_id='use_liger_kernel', scale=4)
                         gr.Checkbox(elem_id='use_ddp', value=False, scale=4)
-                        gr.Textbox(elem_id='ddp_num', value='2', scale=4)
-                Hyper.build_ui(base_tab)
-                Runtime.build_ui(base_tab)
-                with gr.Row():
+                        gr.Textbox(elem_id='ddp_num', value='1', scale=4)
+                GRPOHyper.build_ui(base_tab)
+                GRPORuntime.build_ui(base_tab)
+                with gr.Row(equal_height=True):
                     gr.Dropdown(
                         elem_id='gpu_id',
                         multiselect=True,
@@ -212,16 +214,25 @@ class LLMGRPO(LLMTrain):
                     submit = gr.Button(elem_id='submit', scale=4, variant='primary')
 
                 Rollout.build_ui(base_tab)
-                LoRA.build_ui(base_tab)
+                Tuner.build_ui(base_tab)
                 RefModel.build_ui(base_tab)
-                Quantization.build_ui(base_tab)
-                Save.build_ui(base_tab)
-                ReportTo.build_ui(base_tab)
-                GRPOAdvanced.build_ui(base_tab)
-                Advanced.build_ui(base_tab)
+                GRPOQuantization.build_ui(base_tab)
+                GRPOSave.build_ui(base_tab)
+                GRPOReportTo.build_ui(base_tab)
+                GrpoAdvanced.build_ui(base_tab)
+                GrpoAdvanced.build_ui(base_tab)
 
                 cls.element('train_type').change(
-                    Hyper.update_lr, inputs=[base_tab.element('train_type')], outputs=[cls.element('learning_rate')])
+                    GRPOHyper.update_lr,
+                    inputs=[base_tab.element('train_type')],
+                    outputs=[cls.element('learning_rate')])
+
+                base_tab.element('gpu_id').change(
+                    cls.update_ddp_num,
+                    [base_tab.element('gpu_id'), base_tab.element('use_ddp')], base_tab.element('ddp_num'))
+                base_tab.element('use_ddp').change(
+                    cls.update_ddp_num,
+                    [base_tab.element('gpu_id'), base_tab.element('use_ddp')], base_tab.element('ddp_num'))
 
                 submit.click(
                     cls.train_local,
@@ -235,10 +246,10 @@ class LLMGRPO(LLMTrain):
                     queue=True)
 
                 base_tab.element('running_tasks').change(
-                    partial(Runtime.task_changed, base_tab=base_tab), [base_tab.element('running_tasks')],
-                    list(base_tab.valid_elements().values()) + [cls.element('log')] + Runtime.all_plots)
-                Runtime.element('kill_task').click(
-                    Runtime.kill_task,
-                    [Runtime.element('running_tasks')],
-                    [Runtime.element('running_tasks')] + [Runtime.element('log')] + Runtime.all_plots,
-                ).then(Runtime.reset, [], [Runtime.element('logging_dir')] + [Hyper.element('output_dir')])
+                    partial(GRPORuntime.task_changed, base_tab=base_tab), [base_tab.element('running_tasks')],
+                    list(base_tab.valid_elements().values()) + [cls.element('log')] + GRPORuntime.all_plots)
+                GRPORuntime.element('kill_task').click(
+                    GRPORuntime.kill_task,
+                    [GRPORuntime.element('running_tasks')],
+                    [GRPORuntime.element('running_tasks')] + [GRPORuntime.element('log')] + GRPORuntime.all_plots,
+                ).then(GRPORuntime.reset, [], [GRPORuntime.element('logging_dir')] + [GRPOHyper.element('output_dir')])

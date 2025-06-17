@@ -170,6 +170,44 @@ class Runtime(BaseUI):
                 'en': 'The actual command'
             }
         },
+        'show_running_cmd': {
+            'label': {
+                'zh': '展示运行命令',
+                'en': 'Show running Command line'
+            },
+            'info': {
+                'zh': '展示运行的训练命令',
+                'en': 'Show the training command in action'
+            }
+        },
+        'show_sh': {
+            'label': {
+                'zh': '展示sh命令行',
+                'en': 'Show sh Command line'
+            },
+        },
+        'cmd_sh': {
+            'label': {
+                'zh': '训练命令行',
+                'en': 'Training Command line'
+            },
+            'info': {
+                'zh': '点击下方的`保存训练命令`可以保存sh脚本',
+                'en': 'Click the `Save training command` below to save the sh script'
+            }
+        },
+        'save_cmd_as_sh': {
+            'value': {
+                'zh': '保存训练命令',
+                'en': 'Save training Command'
+            }
+        },
+        'close_cmd_show': {
+            'value': {
+                'zh': '关闭训练命令展示',
+                'en': 'Close training command show'
+            }
+        },
         'show_log': {
             'value': {
                 'zh': '展示运行状态',
@@ -208,8 +246,8 @@ class Runtime(BaseUI):
                 'en': 'Running Tasks'
             },
             'info': {
-                'zh': '运行中的任务（所有的swift sft命令）',
-                'en': 'All running tasks(started by swift sft)'
+                'zh': '运行中的任务（所有的swift sft/pt命令）',
+                'en': 'All running tasks(started by swift sft/pt)'
             }
         },
         'refresh_tasks': {
@@ -252,17 +290,24 @@ class Runtime(BaseUI):
     def do_build_ui(cls, base_tab: Type['BaseUI']):
         with gr.Accordion(elem_id='runtime_tab', open=False, visible=True):
             with gr.Blocks():
-                with gr.Row():
+                with gr.Row(equal_height=True):
                     gr.Textbox(elem_id='running_cmd', lines=1, scale=20, interactive=False, max_lines=1)
+                    gr.Button(elem_id='show_running_cmd', scale=2, variant='primary')
                     gr.Textbox(elem_id='logging_dir', lines=1, scale=20, max_lines=1)
                     gr.Button(elem_id='show_log', scale=2, variant='primary')
                     gr.Button(elem_id='stop_show_log', scale=2)
+                with gr.Accordion(elem_id='show_sh', open=True, visible=False):
+                    gr.Textbox(elem_id='cmd_sh', lines=8)
+                    with gr.Row(equal_height=True):
+                        gr.Button(elem_id='save_cmd_as_sh', variant='primary', scale=2)
+                        gr.Button(elem_id='close_cmd_show', scale=2)
+                with gr.Row(equal_height=True):
                     gr.Textbox(elem_id='tb_url', lines=1, scale=10, interactive=False, max_lines=1)
                     gr.Button(elem_id='start_tb', scale=2, variant='primary')
                     gr.Button(elem_id='close_tb', scale=2)
                 with gr.Row():
                     gr.Textbox(elem_id='log', lines=6, visible=False)
-                with gr.Row():
+                with gr.Row(equal_height=True):
                     gr.Dropdown(elem_id='running_tasks', scale=10)
                     gr.Button(elem_id='refresh_tasks', scale=1)
                     gr.Button(elem_id='kill_task', scale=1)

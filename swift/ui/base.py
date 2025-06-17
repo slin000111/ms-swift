@@ -407,3 +407,12 @@ class BaseUI:
             else:
                 updates.append(gr.update())
         return updates
+
+    @classmethod
+    def update_ddp_num(cls, gpu_ids, use_ddp):
+        if use_ddp:
+            if 'cpu' in gpu_ids:
+                return None
+            else:
+                return len(gpu_ids)
+        return 1
