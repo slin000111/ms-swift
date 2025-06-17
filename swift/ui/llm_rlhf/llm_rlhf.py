@@ -17,46 +17,36 @@ from transformers.utils import is_torch_cuda_available, is_torch_npu_available
 from swift.llm import RLHFArguments
 from swift.llm.argument.base_args.base_args import get_supported_tuners
 from swift.ui.base import BaseUI
-from swift.ui.llm_train.advanced import Advanced
-from swift.ui.llm_train.dataset import Dataset
-from swift.ui.llm_train.hyper import Hyper
-from swift.ui.llm_train.model import Model
-from swift.ui.llm_train.optimizer import Optimizer
-from swift.ui.llm_train.quantization import Quantization
-from swift.ui.llm_train.report_to import ReportTo
-from swift.ui.llm_train.runtime import Runtime
-from swift.ui.llm_train.save import Save
-from swift.ui.llm_train.self_cog import SelfCog
-from swift.ui.llm_train.task import Task
-from swift.ui.llm_train.tuner import Tuner
+from swift.ui.llm_rlhf.advanced import RLHFAdvanced
+from swift.ui.llm_rlhf.dataset import RLHFDataset
+from swift.ui.llm_rlhf.hyper import RLHFHyper
+from swift.ui.llm_rlhf.model import RLHFModel
+from swift.ui.llm_rlhf.optimizer import RLHFOptimizer
+from swift.ui.llm_rlhf.quantization import RLHFQuantization
+from swift.ui.llm_rlhf.report_to import RLHFReportTo
+from swift.ui.llm_rlhf.rlhf import RLHF
+from swift.ui.llm_rlhf.runtime import RLHFRuntime
+from swift.ui.llm_rlhf.save import RLHFSave
+from swift.ui.llm_rlhf.tuner import RLHFTuner
 from swift.utils import get_device_count, get_logger
 
 logger = get_logger()
 
 
-class LLMTrain(BaseUI):
-    group = 'llm_train'
+class LLMRLHF(BaseUI):
+
+    group = 'llm_rlhf'
 
     sub_ui = [
-        Model,
-        Dataset,
-        Runtime,
-        Save,
-        Optimizer,
-        Task,
-        Tuner,
-        Hyper,
-        Quantization,
-        SelfCog,
-        Advanced,
-        ReportTo,
+        RLHFModel, RLHFDataset, RLHFRuntime, RLHFSave, RLHFHyper, RLHFQuantization, RLHFAdvanced, RLHFOptimizer, RLHF,
+        RLHFReportTo, RLHFTuner
     ]
 
     locale_dict: Dict[str, Dict] = {
-        'llm_train': {
+        'llm_rlhf': {
             'label': {
-                'zh': 'LLM训练',
-                'en': 'LLM Training',
+                'zh': 'LLM RLHF',
+                'en': 'LLM RLHF',
             }
         },
         'train_stage': {
@@ -200,17 +190,16 @@ class LLMTrain(BaseUI):
 
     @classmethod
     def do_build_ui(cls, base_tab: Type['BaseUI']):
-        with gr.TabItem(elem_id='llm_train', label=''):
+        with gr.TabItem(elem_id='llm_rlhf', label=''):
             default_device = 'cpu'
             device_count = get_device_count()
             if device_count > 0:
                 default_device = '0'
             with gr.Blocks():
-                Model.build_ui(base_tab)
-                Dataset.build_ui(base_tab)
+                RLHFModel.build_ui(base_tab)
+                RLHFDataset.build_ui(base_tab)
                 with gr.Accordion(elem_id='train_param', open=True):
                     with gr.Row():
-                        gr.Dropdown(elem_id='train_stage', choices=['pt', 'sft'], value='sft', scale=3)
                         gr.Dropdown(elem_id='train_type', scale=2, choices=list(get_supported_tuners()))
                         gr.Dropdown(elem_id='tuner_backend', scale=2)
                     with gr.Row():
@@ -219,8 +208,8 @@ class LLMTrain(BaseUI):
                         gr.Checkbox(elem_id='use_liger_kernel', scale=4)
                         gr.Checkbox(elem_id='use_ddp', value=False, scale=4)
                         gr.Textbox(elem_id='ddp_num', value='1', scale=4)
-                Hyper.build_ui(base_tab)
-                Runtime.build_ui(base_tab)
+                RLHFHyper.build_ui(base_tab)
+                RLHFRuntime.build_ui(base_tab)
                 with gr.Row(equal_height=True):
                     gr.Dropdown(
                         elem_id='gpu_id',
@@ -232,17 +221,24 @@ class LLMTrain(BaseUI):
                     gr.Checkbox(elem_id='dry_run', value=False, scale=4)
                     submit = gr.Button(elem_id='submit', scale=4, variant='primary')
 
-                Tuner.build_ui(base_tab)
-                Optimizer.build_ui(base_tab)
-                Quantization.build_ui(base_tab)
-                SelfCog.build_ui(base_tab)
-                Task.build_ui(base_tab)
-                Save.build_ui(base_tab)
-                ReportTo.build_ui(base_tab)
-                Advanced.build_ui(base_tab)
+                RLHFTuner.build_ui(base_tab)
+                RLHFOptimizer.build_ui(base_tab)
+                RLHF.build_ui(base_tab)
+                RLHFQuantization.build_ui(base_tab)
+                RLHFSave.build_ui(base_tab)
+                RLHFReportTo.build_ui(base_tab)
+                RLHFAdvanced.build_ui(base_tab)
 
+                base_tab.element('gpu_id').change(
+                    cls.update_ddp_num,
+                    [base_tab.element('gpu_id'), base_tab.element('use_ddp')], base_tab.element('ddp_num'))
+                base_tab.element('use_ddp').change(
+                    cls.update_ddp_num,
+                    [base_tab.element('gpu_id'), base_tab.element('use_ddp')], base_tab.element('ddp_num'))
                 cls.element('train_type').change(
-                    Hyper.update_lr, inputs=[base_tab.element('train_type')], outputs=[cls.element('learning_rate')])
+                    RLHFHyper.update_lr,
+                    inputs=[base_tab.element('train_type')],
+                    outputs=[cls.element('learning_rate')])
 
                 submit.click(
                     cls.train_local,
@@ -255,23 +251,14 @@ class LLMTrain(BaseUI):
                     ],
                     queue=True)
 
-                base_tab.element('gpu_id').change(
-                    cls.update_ddp_num,
-                    [base_tab.element('gpu_id'), base_tab.element('use_ddp')], base_tab.element('ddp_num'))
-                base_tab.element('use_ddp').change(
-                    cls.update_ddp_num,
-                    [base_tab.element('gpu_id'), base_tab.element('use_ddp')], base_tab.element('ddp_num'))
                 base_tab.element('running_tasks').change(
-                    partial(Runtime.task_changed, base_tab=base_tab), [base_tab.element('running_tasks')],
-                    list(base_tab.valid_elements().values()) + [cls.element('log')] + Runtime.all_plots)
-                Runtime.element('show_running_cmd').click(cls.show_train_sh, Runtime.element('running_cmd'),
-                                                          [Runtime.element('cmd_sh')] + [Runtime.element('show_sh')])
-                Runtime.element('save_cmd_as_sh').click(cls.save_cmd, Runtime.element('running_cmd'), [])
-                Runtime.element('kill_task').click(
-                    Runtime.kill_task,
-                    [Runtime.element('running_tasks')],
-                    [Runtime.element('running_tasks')] + [Runtime.element('log')] + Runtime.all_plots,
-                ).then(Runtime.reset, [], [Runtime.element('logging_dir')] + [Hyper.element('output_dir')])
+                    partial(RLHFRuntime.task_changed, base_tab=base_tab), [base_tab.element('running_tasks')],
+                    list(base_tab.valid_elements().values()) + [cls.element('log')] + RLHFRuntime.all_plots)
+                RLHFRuntime.element('kill_task').click(
+                    RLHFRuntime.kill_task,
+                    [RLHFRuntime.element('running_tasks')],
+                    [RLHFRuntime.element('running_tasks')] + [RLHFRuntime.element('log')] + RLHFRuntime.all_plots,
+                ).then(RLHFRuntime.reset, [], [RLHFRuntime.element('logging_dir')] + [RLHFHyper.element('output_dir')])
 
     @classmethod
     def update_runtime(cls):
@@ -331,7 +318,7 @@ class LLMTrain(BaseUI):
                     for key, value in kwargs.items()
                 })
         except Exception as e:
-            if 'Please set --model' in str(e):  # TODO a dirty fix
+            if 'using `--model`' in str(e):  # TODO a dirty fix
                 kwargs['model'] = kwargs.pop('resume_from_checkpoint')
                 sft_args = RLHFArguments(
                     **{
@@ -410,12 +397,12 @@ class LLMTrain(BaseUI):
                 for line in iter(process.stdout.readline, b''):
                     line = line.decode('utf-8')
                     lines.append(line)
-                    yield ['\n'.join(lines)] + Runtime.plot(run_command) + [run_command]
+                    yield ['\n'.join(lines)] + RLHFRuntime.plot(run_command) + [run_command]
         else:
             yield [
                 'Current is dryrun mode so you can only view the training cmd, please duplicate this space to '
                 'do training or use with inference.'
-            ] + [None] * len(Runtime.sft_plot) + [run_command]
+            ] + [None] * len(RLHFRuntime.sft_plot) + [run_command]
 
     @classmethod
     def train_local(cls, *args):
@@ -425,32 +412,5 @@ class LLMTrain(BaseUI):
             os.system(run_command)
             time.sleep(1)  # to make sure the log file has been created.
             gr.Info(cls.locale('submit_alert', cls.lang)['value'])
-        return run_command, sft_args.logging_dir, gr.update(open=True), Runtime.refresh_tasks(
+        return run_command, sft_args.logging_dir, gr.update(open=True), RLHFRuntime.refresh_tasks(
             sft_args.output_dir), gr.update(choices=cls.list_cache(sft_args.model))
-
-    @classmethod
-    def save_cmd(cls, cmd):
-        cmd_sh, output_dir = cls.cmd_to_sh_format(cmd)
-        os.makedirs(output_dir, exist_ok=True)
-        file_name = 'train.sh'
-        with open(os.path.join(output_dir, file_name), 'w', encoding='utf-8') as f:
-            f.write(cmd_sh)
-
-    @classmethod
-    def show_train_sh(cls, cmd):
-        cmd_sh, _ = cls.cmd_to_sh_format(cmd)
-        return cmd_sh, gr.update(visible=True)
-
-    @classmethod
-    def cmd_to_sh_format(cmd):
-        cmd_sh = ''
-        params = cmd.split('--')
-        env_params = params[0].split('nohup')[0].strip()
-        cmd_sh += (env_params + ' \\\n')
-        swift_cmd = params[0].split('nohup')[1].strip()
-        cmd_sh += ('nohup ' + swift_cmd + ' \\\n')
-        for param in params[1:]:
-            if param.startwith('output_dir'):
-                output_dir = param.strip()
-            cmd_sh += ('--' + param.strip() + ' \\\n')
-        return cmd_sh, output_dir
