@@ -369,7 +369,7 @@ class Tuner(BaseUI):
                             gr.Dropdown(
                                 elem_id='lora_ga_scale',
                                 scale=20,
-                                value='ArB2r',
+                                value='stable',
                                 choices=['gd', 'unit', 'stable', 'weights'])
                             gr.Textbox(elem_id='lora_ga_stable_gamma', value='16', scale=20)
                 with gr.TabItem(elem_id='longlora'):

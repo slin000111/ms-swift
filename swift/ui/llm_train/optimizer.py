@@ -114,7 +114,11 @@ class Optimizer(BaseUI):
     @classmethod
     def do_build_ui(cls, base_tab: Type['BaseUI']):
         with gr.Accordion(elem_id='optimizer_params', open=False):
-            gr.Dropdown(elem_id='optimizer', choices=['causal_lm', 'seq_cls', 'embedding'], value='')
+            gr.Dropdown(
+                elem_id='optimizer',
+                choices=['galore', 'lorap', 'muon', 'multimodal'],
+                value='',
+                allow_custom_value=True)
             with gr.Tabs():
                 with gr.TabItem(elem_id='galore_tab'):
                     with gr.Row():
