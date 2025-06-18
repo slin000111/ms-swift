@@ -171,13 +171,9 @@ class Runtime(BaseUI):
             }
         },
         'show_running_cmd': {
-            'label': {
+            'value': {
                 'zh': '展示运行命令',
                 'en': 'Show running Command line'
-            },
-            'info': {
-                'zh': '展示运行的训练命令',
-                'en': 'Show the training command in action'
             }
         },
         'show_sh': {
@@ -641,3 +637,7 @@ class Runtime(BaseUI):
                 ax.plot(steps, values, color=TB_COLOR_SMOOTH)
             plots.append(fig)
         return plots
+
+    @classmethod
+    def close_cmd_show(cls):
+        return gr.update(visible=False, open=True)

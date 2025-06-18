@@ -62,14 +62,13 @@ class Task(BaseUI):
     @classmethod
     def do_build_ui(cls, base_tab: Type['BaseUI']):
         with gr.Accordion(elem_id='task_params', open=False):
-            gr.Dropdown(elem_id='task_type', choices=['causal_lm', 'seq_cls', 'embedding'], value='')
+            gr.Dropdown(elem_id='task_type', choices=['causal_lm', 'seq_cls', 'embedding'])
             with gr.Tabs():
                 with gr.TabItem(elem_id='embed_tab'):
                     with gr.Row():
                         gr.Dropdown(
                             elem_id='loss_type',
-                            choices=['cosine_similarity', 'contrastive', 'online_contrastive', 'infonce'],
-                            value='')
+                            choices=['cosine_similarity', 'contrastive', 'online_contrastive', 'infonce'])
                 with gr.TabItem(elem_id='seq_cls_tab'):
                     with gr.Row():
                         gr.Textbox(elem_id='num_labels', scale=4)

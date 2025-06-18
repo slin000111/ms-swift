@@ -267,6 +267,7 @@ class LLMTrain(BaseUI):
                 Runtime.element('show_running_cmd').click(cls.show_train_sh, Runtime.element('running_cmd'),
                                                           [Runtime.element('cmd_sh')] + [Runtime.element('show_sh')])
                 Runtime.element('save_cmd_as_sh').click(cls.save_cmd, Runtime.element('running_cmd'), [])
+                Runtime.element('close_cmd_show').click(Runtime.close_cmd_show, [], [Runtime.element('show_sh')])
                 Runtime.element('kill_task').click(
                     Runtime.kill_task,
                     [Runtime.element('running_tasks')],
@@ -442,7 +443,7 @@ class LLMTrain(BaseUI):
         return cmd_sh, gr.update(visible=True)
 
     @classmethod
-    def cmd_to_sh_format(cmd):
+    def cmd_to_sh_format(cls, cmd):
         cmd_sh = ''
         params = cmd.split('--')
         env_params = params[0].split('nohup')[0].strip()
@@ -450,7 +451,7 @@ class LLMTrain(BaseUI):
         swift_cmd = params[0].split('nohup')[1].strip()
         cmd_sh += ('nohup ' + swift_cmd + ' \\\n')
         for param in params[1:]:
-            if param.startwith('output_dir'):
+            if param.startswith('output_dir'):
                 output_dir = param.strip()
             cmd_sh += ('--' + param.strip() + ' \\\n')
         return cmd_sh, output_dir
