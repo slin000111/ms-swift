@@ -28,12 +28,13 @@ from swift.ui.llm_rlhf.rlhf import RLHF
 from swift.ui.llm_rlhf.runtime import RLHFRuntime
 from swift.ui.llm_rlhf.save import RLHFSave
 from swift.ui.llm_rlhf.tuner import RLHFTuner
+from swift.ui.llm_train.llm_train import LLMTrain
 from swift.utils import get_device_count, get_logger
 
 logger = get_logger()
 
 
-class LLMRLHF(BaseUI):
+class LLMRLHF(LLMTrain):
 
     group = 'llm_rlhf'
 
@@ -184,10 +185,6 @@ class LLMRLHF(BaseUI):
         },
     }
 
-    choice_dict = BaseUI.get_choices_from_dataclass(RLHFArguments)
-    default_dict = BaseUI.get_default_value_from_dataclass(RLHFArguments)
-    arguments = BaseUI.get_argument_names(RLHFArguments)
-
     @classmethod
     def do_build_ui(cls, base_tab: Type['BaseUI']):
         with gr.TabItem(elem_id='llm_rlhf', label=''):
@@ -259,10 +256,6 @@ class LLMRLHF(BaseUI):
                     [RLHFRuntime.element('running_tasks')],
                     [RLHFRuntime.element('running_tasks')] + [RLHFRuntime.element('log')] + RLHFRuntime.all_plots,
                 ).then(RLHFRuntime.reset, [], [RLHFRuntime.element('logging_dir')] + [RLHFHyper.element('output_dir')])
-
-    @classmethod
-    def update_runtime(cls):
-        return gr.update(open=True), gr.update(visible=True)
 
     @classmethod
     def train(cls, *args):
@@ -388,29 +381,5 @@ class LLMRLHF(BaseUI):
         return run_command, sft_args, other_kwargs
 
     @classmethod
-    def train_studio(cls, *args):
-        run_command, sft_args, other_kwargs = cls.train(*args)
-        if not other_kwargs['dry_run']:
-            lines = collections.deque(maxlen=int(os.environ.get('MAX_LOG_LINES', 50)))
-            process = Popen(run_command, shell=True, stdout=PIPE, stderr=STDOUT)
-            with process.stdout:
-                for line in iter(process.stdout.readline, b''):
-                    line = line.decode('utf-8')
-                    lines.append(line)
-                    yield ['\n'.join(lines)] + RLHFRuntime.plot(run_command) + [run_command]
-        else:
-            yield [
-                'Current is dryrun mode so you can only view the training cmd, please duplicate this space to '
-                'do training or use with inference.'
-            ] + [None] * len(RLHFRuntime.sft_plot) + [run_command]
-
-    @classmethod
-    def train_local(cls, *args):
-        run_command, sft_args, other_kwargs = cls.train(*args)
-        if not other_kwargs['dry_run']:
-            os.makedirs(sft_args.logging_dir, exist_ok=True)
-            os.system(run_command)
-            time.sleep(1)  # to make sure the log file has been created.
-            gr.Info(cls.locale('submit_alert', cls.lang)['value'])
-        return run_command, sft_args.logging_dir, gr.update(open=True), RLHFRuntime.refresh_tasks(
-            sft_args.output_dir), gr.update(choices=cls.list_cache(sft_args.model))
+    def prepare_sub_to_filter(cls):
+        return ['train_type', 'opimizer'], RLHFTuner.tabs_to_filter + RLHFOptimizer.tabs_to_filter
