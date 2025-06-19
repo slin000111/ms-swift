@@ -256,5 +256,9 @@ class LLMGRPO(LLMTrain):
 
     @classmethod
     def prepare_sub_to_filter(cls):
-        return ['train_type', 'opimizer',
-                'vllm_mode'], GRPOTuner.tabs_to_filter + GRPOOptimizer.tabs_to_filter + Rollout.tabs_to_filter
+        tabs_relation_dict = {
+            key: val
+            for key, val in zip(['train_type', 'opimizer', 'vllm_mode'],
+                                [GRPOTuner.tabs_to_filter, GRPOOptimizer.tabs_to_filter, Rollout.tabs_to_filter])
+        }
+        return tabs_relation_dict

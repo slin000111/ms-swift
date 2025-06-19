@@ -257,14 +257,13 @@ class Rollout(BaseUI):
         }
     }
 
-    tabs_to_filter = [{
+    tabs_to_filter = {
         'colocate': [
             'vllm_enable_prefix_caching', 'vllm_gpu_memory_utilization', 'vllm_tensor_parallel_size',
             'vllm_max_model_len', 'sleep_level', 'offload_model', 'offload_optimizer', 'gc_collect_after_offload'
-        ]
-    }, {
+        ],
         'lorap': ['async_generate', 'vllm_server_host', 'vllm_server_port', 'vllm_server_timeout']
-    }]
+    }
 
     @classmethod
     def do_build_ui(cls, base_tab: Type['BaseUI']):

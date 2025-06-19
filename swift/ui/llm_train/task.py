@@ -59,7 +59,7 @@ class Task(BaseUI):
         }
     }
 
-    tabs_to_filter = [{'embedding': ['loss_type']}, {'seq_cls': ['num_labels', 'use_chat_template']}]
+    tabs_to_filter = {'embedding': ['loss_type'], 'seq_cls': ['num_labels', 'use_chat_template']}
 
     @classmethod
     def do_build_ui(cls, base_tab: Type['BaseUI']):

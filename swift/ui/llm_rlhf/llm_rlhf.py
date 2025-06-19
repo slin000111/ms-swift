@@ -304,6 +304,11 @@ class LLMRLHF(LLMTrain):
         cmd = train_stage
         if kwargs.get('deepspeed'):
             more_params_cmd += f' --deepspeed {kwargs.pop("deepspeed")} '
+        use_liger_kernel = kwargs.get('use_liger_kernel', None)
+        if use_liger_kernel:
+            kwargs.pop('use_liger_kernel')
+        tabs_relation_dict = cls.prepare_sub_to_filter()
+        cls.remove_useless_args(kwargs, tabs_relation_dict)
         try:
             sft_args = RLHFArguments(
                 **{
@@ -334,6 +339,8 @@ class LLMRLHF(LLMTrain):
                 params += f'--{e} {cls.quote}{sep.join(all_args)}{cls.quote} '
             else:
                 params += f'--{e} {cls.quote}{kwargs[e]}{cls.quote} '
+        if use_liger_kernel:
+            params += f'--use_liger_kernel {cls.quote}{use_liger_kernel}{cls.quote}'
         params += more_params_cmd + ' '
         params += f'--add_version False --output_dir {sft_args.output_dir} ' \
                   f'--logging_dir {sft_args.logging_dir} --ignore_args_error True'
@@ -382,4 +389,8 @@ class LLMRLHF(LLMTrain):
 
     @classmethod
     def prepare_sub_to_filter(cls):
-        return ['train_type', 'opimizer'], RLHFTuner.tabs_to_filter + RLHFOptimizer.tabs_to_filter
+        tabs_relation_dict = {
+            key: val
+            for key, val in zip(['train_type', 'opimizer'], [RLHFTuner.tabs_to_filter, RLHFOptimizer.tabs_to_filter])
+        }
+        return tabs_relation_dict
