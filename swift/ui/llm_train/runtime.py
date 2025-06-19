@@ -1,6 +1,6 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import collections
-import os.path
+import os
 import sys
 import time
 import webbrowser

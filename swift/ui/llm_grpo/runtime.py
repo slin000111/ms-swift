@@ -1,4 +1,8 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
+import os
+
+import gradio as gr
+
 from swift.ui.llm_train.runtime import Runtime
 from swift.utils import get_logger
 
@@ -30,6 +34,46 @@ class GRPORuntime(Runtime):
             'info': {
                 'zh': '执行的实际命令',
                 'en': 'The actual command'
+            }
+        },
+        'show_running_cmd': {
+            'value': {
+                'zh': '展示运行命令',
+                'en': 'Show running Command line'
+            },
+        },
+        'show_sh': {
+            'label': {
+                'zh': '展示sh命令行',
+                'en': 'Show sh Command line'
+            },
+        },
+        'cmd_sh': {
+            'label': {
+                'zh': '训练命令行',
+                'en': 'Training Command line'
+            },
+            'info': {
+                'zh': '点击下方的`保存训练命令`可以保存sh脚本',
+                'en': 'Click the `Save training command` below to save the sh script'
+            }
+        },
+        'save_cmd_as_sh': {
+            'value': {
+                'zh': '保存训练命令',
+                'en': 'Save training Command'
+            }
+        },
+        'save_cmd_alert': {
+            'value': {
+                'zh': '训练命令行将被保存在：{}',
+                'en': 'The training command line will be saved in: {}'
+            }
+        },
+        'close_cmd_show': {
+            'value': {
+                'zh': '关闭训练命令展示',
+                'en': 'Close training command show'
             }
         },
         'show_log': {
@@ -109,3 +153,13 @@ class GRPORuntime(Runtime):
             },
         },
     }
+
+    @classmethod
+    def save_cmd(cls, cmd):
+        if len(cmd) > 0:
+            cmd_sh, output_dir = cls.cmd_to_sh_format(cmd)
+            os.makedirs(output_dir, exist_ok=True)
+            sh_file_path = os.path.join(output_dir, 'grpo.sh')
+            gr.Info(cls.locale('save_cmd_alert', cls.lang)['value'].format(sh_file_path))
+            with open(sh_file_path, 'w', encoding='utf-8') as f:
+                f.write(cmd_sh)
