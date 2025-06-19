@@ -327,6 +327,32 @@ class Tuner(BaseUI):
         },
     }
 
+    tabs_to_filter = [{
+        'lora': ['lora_rank', 'lora_alpha', 'lora_dropout', 'lora_dtype', 'use_rslora', 'use_dora']
+    }, {
+        'llamapro': ['llamapro_num_new_blocks', 'llamapro_num_groups']
+    }, {
+        'lisa': ['lisa_activated_layers', 'lisa_step_interval']
+    }, {
+        'adalora': [
+            'adalora_target_r', 'adalora_init_r', 'adalora_tinit', 'adalora_tfinal', 'adalora_deltaT', 'adalora_beta1',
+            'adalora_beta2', 'adalora_orth_reg_weight'
+        ]
+    }, {
+        'lora_ga': [
+            'lora_ga_batch_size', 'lora_ga_iters', 'lora_ga_max_length', 'lora_ga_direction', 'lora_ga_scale',
+            'lora_ga_stable_gamma'
+        ]
+    }, {
+        'reft': ['reft_layers', 'reft_rank', 'reft_intervention_type']
+    }, {
+        'vera': ['vera_rank', 'vera_projection_prng_key', 'vera_dropout', 'vera_d_initial']
+    }, {
+        'boft': ['boft_block_size', 'boft_block_num', 'boft_dropout']
+    }, {
+        'fourierft': ['fourier_n_frequency', 'fourier_scaling']
+    }]
+
     @classmethod
     def do_build_ui(cls, base_tab: Type['BaseUI']):
         with gr.Accordion(elem_id='tuner_params', open=False):
@@ -393,7 +419,7 @@ class Tuner(BaseUI):
                     with gr.Blocks():
                         with gr.Row():
                             gr.Slider(elem_id='vera_rank', value=256, minimum=1, maximum=512, step=4, scale=2)
-                            gr.Checkbox(elem_id='vera_projection_prng_key', value=True, scale=2)
+                            gr.Textbox(elem_id='vera_projection_prng_key', value='0', scale=2)
                             gr.Textbox(elem_id='vera_dropout', value='0.0', scale=2)
                             gr.Textbox(elem_id='vera_d_initial', value='0.1', scale=2)
                 with gr.TabItem(elem_id='boft_tab'):

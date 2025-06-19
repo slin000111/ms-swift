@@ -264,10 +264,6 @@ class LLMTrain(BaseUI):
                 base_tab.element('running_tasks').change(
                     partial(Runtime.task_changed, base_tab=base_tab), [base_tab.element('running_tasks')],
                     list(base_tab.valid_elements().values()) + [cls.element('log')] + Runtime.all_plots)
-                Runtime.element('show_running_cmd').click(cls.show_train_sh, Runtime.element('running_cmd'),
-                                                          [Runtime.element('cmd_sh')] + [Runtime.element('show_sh')])
-                Runtime.element('save_cmd_as_sh').click(cls.save_cmd, Runtime.element('running_cmd'), [])
-                Runtime.element('close_cmd_show').click(Runtime.close_cmd_show, [], [Runtime.element('show_sh')])
                 Runtime.element('kill_task').click(
                     Runtime.kill_task,
                     [Runtime.element('running_tasks')],
@@ -325,6 +321,12 @@ class LLMTrain(BaseUI):
         cmd = train_stage
         if kwargs.get('deepspeed'):
             more_params_cmd += f' --deepspeed {kwargs.pop("deepspeed")} '
+        if kwargs.get('use_liger_kernel'):
+            use_liger_kernel = kwargs.pop('use_liger_kernel')
+
+        # filter kwargs
+        targets, sub_tab_params = cls.prepare_sub_to_filter
+        cls.remove_useless_args(kwargs, tabs_to_filter, targets)
         try:
             sft_args = RLHFArguments(
                 **{
@@ -355,6 +357,8 @@ class LLMTrain(BaseUI):
                 params += f'--{e} {cls.quote}{sep.join(all_args)}{cls.quote} '
             else:
                 params += f'--{e} {cls.quote}{kwargs[e]}{cls.quote} '
+        if use_liger_kernel:
+            params += f'--use_liger_kernel {cls.quote}{use_liger_kernel}{cls.quote}'
         params += more_params_cmd + ' '
         params += f'--add_version False --output_dir {sft_args.output_dir} ' \
                   f'--logging_dir {sft_args.logging_dir} --ignore_args_error True'
@@ -430,28 +434,25 @@ class LLMTrain(BaseUI):
             sft_args.output_dir), gr.update(choices=cls.list_cache(sft_args.model))
 
     @classmethod
-    def save_cmd(cls, cmd):
-        cmd_sh, output_dir = cls.cmd_to_sh_format(cmd)
-        os.makedirs(output_dir, exist_ok=True)
-        file_name = 'train.sh'
-        with open(os.path.join(output_dir, file_name), 'w', encoding='utf-8') as f:
-            f.write(cmd_sh)
+    def prepare_sub_to_filter(cls):
+        return ['train_type', 'opimizer', 'task'], Tuner.tabs_to_filter + Optimizer.tabs_to_filter + Task.tabs_to_filter
 
     @classmethod
-    def show_train_sh(cls, cmd):
-        cmd_sh, _ = cls.cmd_to_sh_format(cmd)
-        return cmd_sh, gr.update(visible=True)
+    def remove_useless_args(cls, uncleaned_kwargs, tabs_to_filter, targets):
+        for target in targets:
+            target_value = uncleaned_kwargs.get(target, None)
+            if target_value:
+                useless_keys = []
+                for sub_tab in tabs_to_filter:
+                    if sub_tab.key() != target_value:
+                        if target_value == 'longlora' and sub_tab.key() == 'lora':
+                            continue
+                        if target_value == 'full' and sub_tab.key() == 'reft':
+                            continue
+                        useless_keys.append(sub_tab.value())
+                for key in useless_keys:
+                    if key in uncleaned_kwargs.keys():
+                        uncleaned_kwargs.pop(key)
+        # reft
 
-    @classmethod
-    def cmd_to_sh_format(cls, cmd):
-        cmd_sh = ''
-        params = cmd.split('--')
-        env_params = params[0].split('nohup')[0].strip()
-        cmd_sh += (env_params + ' \\\n')
-        swift_cmd = params[0].split('nohup')[1].strip()
-        cmd_sh += ('nohup ' + swift_cmd + ' \\\n')
-        for param in params[1:]:
-            if param.startswith('output_dir'):
-                output_dir = param.strip()
-            cmd_sh += ('--' + param.strip() + ' \\\n')
-        return cmd_sh, output_dir
+        # galore

@@ -20,7 +20,7 @@ from swift.ui.llm_grpo.reward import Reward
 from swift.ui.llm_grpo.rollout import Rollout
 from swift.ui.llm_grpo.runtime import GRPORuntime
 from swift.ui.llm_grpo.save import GRPOSave
-from swift.ui.llm_grpo.tuner import Tuner
+from swift.ui.llm_grpo.tuner import GRPOTuner
 from swift.ui.llm_train.llm_train import LLMTrain
 from swift.utils import get_device_count, get_logger
 
@@ -37,7 +37,7 @@ class LLMGRPO(LLMTrain):
         GRPORuntime,
         Rollout,
         GRPOSave,
-        Tuner,
+        GRPOTuner,
         GRPOOptimizer,
         GRPOHyper,
         GRPOQuantization,
@@ -214,7 +214,7 @@ class LLMGRPO(LLMTrain):
                     submit = gr.Button(elem_id='submit', scale=4, variant='primary')
 
                 Rollout.build_ui(base_tab)
-                Tuner.build_ui(base_tab)
+                GRPOTuner.build_ui(base_tab)
                 RefModel.build_ui(base_tab)
                 GRPOQuantization.build_ui(base_tab)
                 GRPOSave.build_ui(base_tab)
@@ -253,3 +253,8 @@ class LLMGRPO(LLMTrain):
                     [GRPORuntime.element('running_tasks')],
                     [GRPORuntime.element('running_tasks')] + [GRPORuntime.element('log')] + GRPORuntime.all_plots,
                 ).then(GRPORuntime.reset, [], [GRPORuntime.element('logging_dir')] + [GRPOHyper.element('output_dir')])
+
+    @classmethod
+    def prepare_sub_to_filter(cls):
+        return ['train_type', 'opimizer',
+                'vllm_mode'], GRPOTuner.tabs_to_filter + GRPOOptimizer.tabs_to_filter + Rollout.tabs_to_filter
