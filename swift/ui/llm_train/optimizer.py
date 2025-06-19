@@ -111,13 +111,11 @@ class Optimizer(BaseUI):
         },
     }
 
-    tabs_to_filter = [{
-        'galore': ['use_galore', 'galore_optim_per_parameter', 'galore_rank', 'galore_update_proj_gap']
-    }, {
-        'lorap': ['lorap_lr_ratio']
-    }, {
+    tabs_to_filter = {
+        'galore': ['use_galore', 'galore_optim_per_parameter', 'galore_rank', 'galore_update_proj_gap'],
+        'lorap': ['lorap_lr_ratio'],
         'multimodal': ['vit_lr', 'aligner_lr']
-    }]
+    }
 
     @classmethod
     def do_build_ui(cls, base_tab: Type['BaseUI']):

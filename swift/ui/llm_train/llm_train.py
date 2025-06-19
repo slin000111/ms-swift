@@ -321,12 +321,13 @@ class LLMTrain(BaseUI):
         cmd = train_stage
         if kwargs.get('deepspeed'):
             more_params_cmd += f' --deepspeed {kwargs.pop("deepspeed")} '
-        if kwargs.get('use_liger_kernel'):
-            use_liger_kernel = kwargs.pop('use_liger_kernel')
+        use_liger_kernel = kwargs.get('use_liger_kernel', None)
+        if use_liger_kernel:
+            kwargs.pop('use_liger_kernel')
 
         # filter kwargs
-        targets, sub_tab_params = cls.prepare_sub_to_filter
-        cls.remove_useless_args(kwargs, tabs_to_filter, targets)
+        tabs_relation_dict = cls.prepare_sub_to_filter()
+        cls.remove_useless_args(kwargs, tabs_relation_dict)
         try:
             sft_args = RLHFArguments(
                 **{
@@ -435,24 +436,23 @@ class LLMTrain(BaseUI):
 
     @classmethod
     def prepare_sub_to_filter(cls):
-        return ['train_type', 'opimizer', 'task'], Tuner.tabs_to_filter + Optimizer.tabs_to_filter + Task.tabs_to_filter
+        tabs_relation_dict = {
+            key: val
+            for key, val in zip(['train_type', 'opimizer', 'task'],
+                                [Tuner.tabs_to_filter, Optimizer.tabs_to_filter, Task.tabs_to_filter])
+        }
+        return tabs_relation_dict
 
     @classmethod
-    def remove_useless_args(cls, uncleaned_kwargs, tabs_to_filter, targets):
-        for target in targets:
+    def remove_useless_args(cls, uncleaned_kwargs, tabs_relation_dict):
+        for target, tabs_to_filter in tabs_relation_dict:
             target_value = uncleaned_kwargs.get(target, None)
-            if target_value:
-                useless_keys = []
-                for sub_tab in tabs_to_filter:
-                    if sub_tab.key() != target_value:
-                        if target_value == 'longlora' and sub_tab.key() == 'lora':
-                            continue
-                        if target_value == 'full' and sub_tab.key() == 'reft':
-                            continue
-                        useless_keys.append(sub_tab.value())
-                for key in useless_keys:
-                    if key in uncleaned_kwargs.keys():
-                        uncleaned_kwargs.pop(key)
-        # reft
-
-        # galore
+            for tab_key in tabs_to_filter.keys():
+                if tab_key == 'lora' and target_value == 'longlora':
+                    continue
+                if tab_key == 'lisa' and target_value == 'full' and uncleaned_kwargs.get('lisa_activated_layers', None):
+                    continue
+                if tab_key != target_value:
+                    for arg in tabs_to_filter[tab_key]:
+                        if uncleaned_kwargs.get(arg, None):
+                            uncleaned_kwargs.pop(arg)
