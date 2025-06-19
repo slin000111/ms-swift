@@ -24,12 +24,6 @@ class Model(BaseUI):
                 'en': 'Base model type supported by SWIFT'
             }
         },
-        'load_checkpoint': {
-            'value': {
-                'zh': '部署模型',
-                'en': 'Deploy model',
-            }
-        },
         'model': {
             'label': {
                 'zh': '模型id或路径',

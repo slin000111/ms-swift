@@ -4,7 +4,6 @@ from typing import Dict, Type
 
 import gradio as gr
 
-from swift.llm import RLHFArguments
 from swift.llm.argument.base_args.base_args import get_supported_tuners
 from swift.ui.base import BaseUI
 from swift.ui.llm_grpo.advanced import GRPOAdvanced
