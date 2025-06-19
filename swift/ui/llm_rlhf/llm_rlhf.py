@@ -1,20 +1,9 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-import collections
-import os
-import re
-import sys
-import time
 from functools import partial
-from subprocess import PIPE, STDOUT, Popen
 from typing import Dict, Type
 
 import gradio as gr
-import json
-import torch
-from json import JSONDecodeError
-from transformers.utils import is_torch_cuda_available, is_torch_npu_available
 
-from swift.llm import RLHFArguments
 from swift.llm.argument.base_args.base_args import get_supported_tuners
 from swift.ui.base import BaseUI
 from swift.ui.llm_rlhf.advanced import RLHFAdvanced
@@ -35,12 +24,20 @@ logger = get_logger()
 
 
 class LLMRLHF(LLMTrain):
-
     group = 'llm_rlhf'
 
     sub_ui = [
-        RLHFModel, RLHFDataset, RLHFRuntime, RLHFSave, RLHFHyper, RLHFQuantization, RLHFAdvanced, RLHFOptimizer, RLHF,
-        RLHFReportTo, RLHFTuner
+        RLHFModel,
+        RLHFDataset,
+        RLHFHyper,
+        RLHFRuntime,
+        RLHFTuner,
+        RLHFOptimizer,
+        RLHF,
+        RLHFQuantization,
+        RLHFSave,
+        RLHFReportTo,
+        RLHFAdvanced,
     ]
 
     locale_dict: Dict[str, Dict] = {
@@ -256,136 +253,6 @@ class LLMRLHF(LLMTrain):
                     [RLHFRuntime.element('running_tasks')],
                     [RLHFRuntime.element('running_tasks')] + [RLHFRuntime.element('log')] + RLHFRuntime.all_plots,
                 ).then(RLHFRuntime.reset, [], [RLHFRuntime.element('logging_dir')] + [RLHFHyper.element('output_dir')])
-
-    @classmethod
-    def train(cls, *args):
-        ignore_elements = ('logging_dir', 'more_params', 'train_stage', 'envs')
-        default_args = cls.get_default_value_from_dataclass(RLHFArguments)
-        kwargs = {}
-        kwargs_is_list = {}
-        other_kwargs = {}
-        more_params = {}
-        more_params_cmd = ''
-        keys = cls.valid_element_keys()
-        if cls.group == 'llm_grpo':
-            train_stage = 'rlhf'
-        else:
-            train_stage = 'sft'
-        for key, value in zip(keys, args):
-            compare_value = default_args.get(key)
-            if isinstance(value, str) and re.fullmatch(cls.int_regex, value):
-                value = int(value)
-            elif isinstance(value, str) and re.fullmatch(cls.float_regex, value):
-                value = float(value)
-            elif isinstance(value, str) and re.fullmatch(cls.bool_regex, value):
-                value = True if value.lower() == 'true' else False
-            if key not in ignore_elements and key in default_args and compare_value != value and value:
-                kwargs[key] = value if not isinstance(value, list) else ' '.join(value)
-                kwargs_is_list[key] = isinstance(value, list) or getattr(cls.element(key), 'is_list', False)
-            else:
-                other_kwargs[key] = value
-            if key == 'more_params' and value:
-                try:
-                    more_params = json.loads(value)
-                except (JSONDecodeError or TypeError):
-                    more_params_cmd = value
-
-            if key == 'train_stage':
-                train_stage = value
-
-        kwargs.update(more_params)
-        if 'dataset' not in kwargs and 'custom_train_dataset_path' not in kwargs:
-            raise gr.Error(cls.locale('dataset_alert', cls.lang)['value'])
-
-        model = kwargs.get('model')
-        if os.path.exists(model) and os.path.exists(os.path.join(model, 'args.json')):
-            kwargs['resume_from_checkpoint'] = kwargs.pop('model')
-
-        cmd = train_stage
-        if kwargs.get('deepspeed'):
-            more_params_cmd += f' --deepspeed {kwargs.pop("deepspeed")} '
-        use_liger_kernel = kwargs.get('use_liger_kernel', None)
-        if use_liger_kernel:
-            kwargs.pop('use_liger_kernel')
-        tabs_relation_dict = cls.prepare_sub_to_filter()
-        cls.remove_useless_args(kwargs, tabs_relation_dict)
-        try:
-            sft_args = RLHFArguments(
-                **{
-                    key: value.split(' ') if kwargs_is_list.get(key, False) and isinstance(value, str) else value
-                    for key, value in kwargs.items()
-                })
-        except Exception as e:
-            if 'using `--model`' in str(e):  # TODO a dirty fix
-                kwargs['model'] = kwargs.pop('resume_from_checkpoint')
-                sft_args = RLHFArguments(
-                    **{
-                        key: value.split(' ') if kwargs_is_list.get(key, False) and isinstance(value, str) else value
-                        for key, value in kwargs.items()
-                    })
-            else:
-                raise e
-        params = ''
-
-        if cls.group == 'llm_grpo' and sys.platform != 'win32':
-            params += f'--rlhf_type {cls.quote}grpo{cls.quote} '
-
-        sep = f'{cls.quote} {cls.quote}'
-        for e in kwargs:
-            if isinstance(kwargs[e], list):
-                params += f'--{e} {cls.quote}{sep.join(kwargs[e])}{cls.quote} '
-            elif e in kwargs_is_list and kwargs_is_list[e]:
-                all_args = [arg for arg in kwargs[e].split(' ') if arg.strip()]
-                params += f'--{e} {cls.quote}{sep.join(all_args)}{cls.quote} '
-            else:
-                params += f'--{e} {cls.quote}{kwargs[e]}{cls.quote} '
-        if use_liger_kernel:
-            params += f'--use_liger_kernel {cls.quote}{use_liger_kernel}{cls.quote}'
-        params += more_params_cmd + ' '
-        params += f'--add_version False --output_dir {sft_args.output_dir} ' \
-                  f'--logging_dir {sft_args.logging_dir} --ignore_args_error True'
-        ddp_param = ''
-        devices = other_kwargs['gpu_id']
-        envs = other_kwargs['envs'] or ''
-        envs = envs.strip()
-        devices = [d for d in devices if d]
-        if other_kwargs['use_ddp']:
-            assert int(other_kwargs['ddp_num']) > 0
-            ddp_param = f'NPROC_PER_NODE={int(other_kwargs["ddp_num"])}'
-        assert (len(devices) == 1 or 'cpu' not in devices)
-        gpus = ','.join(devices)
-        cuda_param = ''
-        if gpus != 'cpu':
-            if is_torch_npu_available():
-                cuda_param = f'ASCEND_RT_VISIBLE_DEVICES={gpus}'
-            elif is_torch_cuda_available():
-                cuda_param = f'CUDA_VISIBLE_DEVICES={gpus}'
-            else:
-                cuda_param = ''
-
-        log_file = os.path.join(sft_args.logging_dir, 'run.log')
-        if sys.platform == 'win32':
-            if cuda_param:
-                cuda_param = f'set {cuda_param} && '
-            if ddp_param:
-                ddp_param = f'set {ddp_param} && '
-            if envs:
-                envs = [env.strip() for env in envs.split(' ') if env.strip()]
-                _envs = ''
-                for env in envs:
-                    _envs += f'set {env} && '
-                envs = _envs
-            run_command = f'{cuda_param}{ddp_param}{envs}start /b swift sft {params} > {log_file} 2>&1'
-        else:
-            run_command = f'{cuda_param} {ddp_param} {envs} nohup swift {cmd} {params} > {log_file} 2>&1 &'
-        logger.info(f'Run training: {run_command}')
-        if model:
-            record = {}
-            for key, value in zip(keys, args):
-                if key in default_args or key in ('more_params', 'train_stage', 'use_ddp', 'ddp_num', 'gpu_id', 'envs'):
-                    record[key] = value or None
-            cls.save_cache(model, record)
-        return run_command, sft_args, other_kwargs
 
     @classmethod
     def prepare_sub_to_filter(cls):

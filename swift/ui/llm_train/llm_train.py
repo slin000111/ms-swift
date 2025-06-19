@@ -10,7 +10,6 @@ from typing import Dict, Type
 
 import gradio as gr
 import json
-import torch
 from json import JSONDecodeError
 from transformers.utils import is_torch_cuda_available, is_torch_npu_available
 
@@ -284,7 +283,7 @@ class LLMTrain(BaseUI):
         more_params = {}
         more_params_cmd = ''
         keys = cls.valid_element_keys()
-        if cls.group == 'llm_grpo':
+        if cls.group in ('llm_grpo', 'llm_rlhf'):
             train_stage = 'rlhf'
         else:
             train_stage = 'sft'
@@ -445,7 +444,7 @@ class LLMTrain(BaseUI):
 
     @classmethod
     def remove_useless_args(cls, uncleaned_kwargs, tabs_relation_dict):
-        for target, tabs_to_filter in tabs_relation_dict:
+        for target, tabs_to_filter in tabs_relation_dict.items():
             target_value = uncleaned_kwargs.get(target, None)
             for tab_key in tabs_to_filter.keys():
                 if tab_key == 'lora' and target_value == 'longlora':

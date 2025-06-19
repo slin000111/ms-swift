@@ -1,21 +1,18 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import os
 import re
-import signal
 import sys
 import time
-from copy import deepcopy
 from datetime import datetime
 from functools import partial
-from typing import List, Type
+from typing import Type
 
 import gradio as gr
 import json
-import torch
 from json import JSONDecodeError
 from transformers.utils import is_torch_cuda_available, is_torch_npu_available
 
-from swift.llm import DeployArguments, InferArguments, SamplingArguments
+from swift.llm import DeployArguments, SamplingArguments
 from swift.llm.dataset.register import get_dataset_list
 from swift.ui.base import BaseUI
 from swift.ui.llm_sample.model import Model
