@@ -196,9 +196,9 @@ class LLMRLHF(LLMTrain):
                     with gr.Row():
                         gr.Dropdown(elem_id='train_type', scale=2, choices=list(get_supported_tuners()))
                         gr.Dropdown(elem_id='tuner_backend', scale=2)
+                        gr.Textbox(elem_id='seed', scale=2)
+                        gr.Dropdown(elem_id='torch_dtype', scale=2)
                     with gr.Row():
-                        gr.Textbox(elem_id='seed', scale=4)
-                        gr.Dropdown(elem_id='torch_dtype', scale=4)
                         gr.Checkbox(elem_id='use_liger_kernel', scale=4)
                         gr.Checkbox(elem_id='use_ddp', value=False, scale=4)
                         gr.Textbox(elem_id='ddp_num', value='1', scale=4)

@@ -54,8 +54,8 @@ class LLMTrain(BaseUI):
     locale_dict: Dict[str, Dict] = {
         'llm_train': {
             'label': {
-                'zh': 'LLM训练',
-                'en': 'LLM Training',
+                'zh': 'LLM预训练/微调',
+                'en': 'LLM PT/SFT',
             }
         },
         'train_stage': {

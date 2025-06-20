@@ -219,7 +219,7 @@ class LLMGRPO(LLMTrain):
                 GRPOSave.build_ui(base_tab)
                 GRPOReportTo.build_ui(base_tab)
                 GrpoAdvanced.build_ui(base_tab)
-                GrpoAdvanced.build_ui(base_tab)
+                GRPOAdvanced.build_ui(base_tab)
 
                 cls.element('train_type').change(
                     GRPOHyper.update_lr,

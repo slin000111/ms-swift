@@ -390,10 +390,6 @@ class Tuner(BaseUI):
                                 value='stable',
                                 choices=['gd', 'unit', 'stable', 'weights'])
                             gr.Textbox(elem_id='lora_ga_stable_gamma', value='16', scale=20)
-                with gr.TabItem(elem_id='longlora'):
-                    with gr.Blocks():
-                        with gr.Row():
-                            pass
                 with gr.TabItem(elem_id='reft_tab'):
                     with gr.Blocks():
                         with gr.Row():
