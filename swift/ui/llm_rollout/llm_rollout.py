@@ -128,7 +128,7 @@ class LLMRollout(BaseUI):
 
     @classmethod
     def rollout(cls, *args):
-        deploy_args = cls.get_default_value_from_dataclass(DeployArguments)
+        rollout_args = cls.get_default_value_from_dataclass(DeployArguments)
         kwargs = {}
         kwargs_is_list = {}
         other_kwargs = {}
@@ -136,10 +136,10 @@ class LLMRollout(BaseUI):
         more_params_cmd = ''
         keys = cls.valid_element_keys()
         for key, value in zip(keys, args):
-            compare_value = deploy_args.get(key)
+            compare_value = rollout_args.get(key)
             compare_value_arg = str(compare_value) if not isinstance(compare_value, (list, dict)) else compare_value
             compare_value_ui = str(value) if not isinstance(value, (list, dict)) else value
-            if key in deploy_args and compare_value_ui != compare_value_arg and value:
+            if key in rollout_args and compare_value_ui != compare_value_arg and value:
                 if isinstance(value, str) and re.fullmatch(cls.int_regex, value):
                     value = int(value)
                 elif isinstance(value, str) and re.fullmatch(cls.float_regex, value):
@@ -164,12 +164,12 @@ class LLMRollout(BaseUI):
                 _json = json.load(f)
                 kwargs['model_type'] = _json['model_type']
                 kwargs['train_type'] = _json['train_type']
-        deploy_args = DeployArguments(
+        rollout_args = DeployArguments(
             **{
                 key: value.split(' ') if key in kwargs_is_list and kwargs_is_list[key] else value
                 for key, value in kwargs.items()
             })
-        if deploy_args.port in RolloutRuntime.get_all_ports():
+        if rollout_args.port in RolloutRuntime.get_all_ports():
             raise gr.Error(cls.locale('port_alert', cls.lang)['value'])
         params = ''
         sep = f'{cls.quote} {cls.quote}'
@@ -182,7 +182,7 @@ class LLMRollout(BaseUI):
             else:
                 params += f'--{e} {cls.quote}{kwargs[e]}{cls.quote} '
         if 'port' not in kwargs:
-            params += f'--port "{deploy_args.port}" '
+            params += f'--port "{rollout_args.port}" '
         params += more_params_cmd + ' '
         devices = other_kwargs['gpu_id']
         devices = [d for d in devices if d]
@@ -198,11 +198,11 @@ class LLMRollout(BaseUI):
                 cuda_param = ''
         now = datetime.now()
         time_str = f'{now.year}{now.month}{now.day}{now.hour}{now.minute}{now.second}'
-        file_path = f'output/{deploy_args.model_type}-{time_str}'
+        file_path = f'output/{rollout_args.model_type}-{time_str}'
         if not os.path.exists(file_path):
             os.makedirs(file_path, exist_ok=True)
         log_file = os.path.join(os.getcwd(), f'{file_path}/run_rollout.log')
-        deploy_args.log_file = log_file
+        rollout_args.log_file = log_file
         params += f'--log_file "{log_file}" '
         params += '--ignore_args_error true '
         if sys.platform == 'win32':
@@ -211,11 +211,11 @@ class LLMRollout(BaseUI):
             run_command = f'{cuda_param}start /b swift rollout {params} > {log_file} 2>&1'
         else:
             run_command = f'{cuda_param} nohup swift rollout {params} > {log_file} 2>&1 &'
-        return run_command, deploy_args, log_file
+        return run_command, rollout_args, log_file
 
     @classmethod
     def rollout_model(cls, *args):
-        run_command, deploy_args, log_file = cls.rollout(*args)
+        run_command, rollout_args, log_file = cls.rollout(*args)
         logger.info(f'Running rollout command: {run_command}')
         os.system(run_command)
         gr.Info(cls.locale('load_alert', cls.lang)['value'])

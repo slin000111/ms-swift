@@ -12,7 +12,7 @@ import json
 from json import JSONDecodeError
 from transformers.utils import is_torch_cuda_available, is_torch_npu_available
 
-from swift.llm import DeployArguments, SamplingArguments
+from swift.llm import SamplingArguments
 from swift.llm.dataset.register import get_dataset_list
 from swift.ui.base import BaseUI
 from swift.ui.llm_sample.model import Model
@@ -46,8 +46,8 @@ class LLMSample(BaseUI):
         },
         'load_alert': {
             'value': {
-                'zh': '部署中，请点击"展示部署状态"查看',
-                'en': 'Start to deploy model, '
+                'zh': '采样中，请点击"展示采样状态"查看',
+                'en': 'Start to sample, '
                 'please Click "Show running '
                 'status" to view details',
             }
@@ -144,7 +144,7 @@ class LLMSample(BaseUI):
                         choices=[str(i) for i in range(device_count)] + ['cpu'],
                         value=default_device,
                         scale=20)
-                    gr.Dropdown(elem_id='output_dir', value='sample_output', scale=20)
+                    gr.Textbox(elem_id='output_dir', value='sample_output', scale=20)
                     gr.Textbox(elem_id='envs', scale=20)
                     gr.Button(elem_id='sample', scale=2, variant='primary')
                 with gr.Row():
@@ -165,7 +165,7 @@ class LLMSample(BaseUI):
 
     @classmethod
     def sample(cls, *args):
-        deploy_args = cls.get_default_value_from_dataclass(SamplingArguments)
+        sample_args = cls.get_default_value_from_dataclass(SamplingArguments)
         kwargs = {}
         kwargs_is_list = {}
         other_kwargs = {}
@@ -173,10 +173,10 @@ class LLMSample(BaseUI):
         more_params_cmd = ''
         keys = cls.valid_element_keys()
         for key, value in zip(keys, args):
-            compare_value = deploy_args.get(key)
+            compare_value = sample_args.get(key)
             compare_value_arg = str(compare_value) if not isinstance(compare_value, (list, dict)) else compare_value
             compare_value_ui = str(value) if not isinstance(value, (list, dict)) else value
-            if key in deploy_args and compare_value_ui != compare_value_arg and value:
+            if key in sample_args and compare_value_ui != compare_value_arg and value:
                 if isinstance(value, str) and re.fullmatch(cls.int_regex, value):
                     value = int(value)
                 elif isinstance(value, str) and re.fullmatch(cls.float_regex, value):
@@ -201,13 +201,12 @@ class LLMSample(BaseUI):
                 _json = json.load(f)
                 kwargs['model_type'] = _json['model_type']
                 kwargs['train_type'] = _json['train_type']
-        deploy_args = DeployArguments(
+        sample_args = SamplingArguments(
             **{
                 key: value.split(' ') if key in kwargs_is_list and kwargs_is_list[key] else value
                 for key, value in kwargs.items()
             })
-        if deploy_args.port in SampleRuntime.get_all_ports():
-            raise gr.Error(cls.locale('port_alert', cls.lang)['value'])
+
         params = ''
         sep = f'{cls.quote} {cls.quote}'
         for e in kwargs:
@@ -218,8 +217,7 @@ class LLMSample(BaseUI):
                 params += f'--{e} {cls.quote}{sep.join(all_args)}{cls.quote} '
             else:
                 params += f'--{e} {cls.quote}{kwargs[e]}{cls.quote} '
-        if 'port' not in kwargs:
-            params += f'--port "{deploy_args.port}" '
+
         params += more_params_cmd + ' '
         devices = other_kwargs['gpu_id']
         devices = [d for d in devices if d]
@@ -235,11 +233,11 @@ class LLMSample(BaseUI):
                 cuda_param = ''
         now = datetime.now()
         time_str = f'{now.year}{now.month}{now.day}{now.hour}{now.minute}{now.second}'
-        file_path = f'output/{deploy_args.model_type}-{time_str}'
+        file_path = f'output/{sample_args.model_type}-{time_str}'
         if not os.path.exists(file_path):
             os.makedirs(file_path, exist_ok=True)
         log_file = os.path.join(os.getcwd(), f'{file_path}/run_sample.log')
-        deploy_args.log_file = log_file
+        sample_args.log_file = log_file
         params += f'--log_file "{log_file}" '
         params += '--ignore_args_error true '
         if sys.platform == 'win32':
@@ -248,11 +246,11 @@ class LLMSample(BaseUI):
             run_command = f'{cuda_param}start /b swift sample {params} > {log_file} 2>&1'
         else:
             run_command = f'{cuda_param} nohup swift sample {params} > {log_file} 2>&1 &'
-        return run_command, deploy_args, log_file
+        return run_command, sample_args, log_file
 
     @classmethod
     def sample_model(cls, *args):
-        run_command, deploy_args, log_file = cls.sample(*args)
+        run_command, sample_args, log_file = cls.sample(*args)
         logger.info(f'Running sample command: {run_command}')
         os.system(run_command)
         gr.Info(cls.locale('load_alert', cls.lang)['value'])

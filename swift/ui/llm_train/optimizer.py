@@ -134,11 +134,8 @@ class Optimizer(BaseUI):
                         gr.Slider(elem_id='galore_update_proj_gap', minimum=10, maximum=1000, step=50, scale=4)
                 with gr.TabItem(elem_id='lorap_tab'):
                     with gr.Row():
-                        gr.Textbox(elem_id='lorap_lr_ratio', value=10, scale=4)
-                with gr.TabItem(elem_id='muon_tab'):
-                    with gr.Row():
-                        pass
+                        gr.Textbox(elem_id='lorap_lr_ratio', scale=4)
                 with gr.TabItem(elem_id='multimodal_tab'):
                     with gr.Row():
-                        gr.Textbox(elem_id='vit_lr', value='', lines=1, scale=20)
-                        gr.Textbox(elem_id='aligner_lr', value='', lines=1, scale=20)
+                        gr.Textbox(elem_id='vit_lr', lines=1, scale=20)
+                        gr.Textbox(elem_id='aligner_lr', lines=1, scale=20)
