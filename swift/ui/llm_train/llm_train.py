@@ -434,7 +434,7 @@ class LLMTrain(BaseUI):
         more_params_cmd = more_params_cmd.strip()
         if more_params_cmd != '':
             params += f'{more_params_cmd} '
-            more_params_cmd = more_params_cmd.split('--')
+            more_params_cmd = [param.strip() for param in more_params_cmd.split('--')]
             more_params_cmd = [param.split(' ') for param in more_params_cmd if param]
             for param in more_params_cmd:
                 command.extend([f'--{param[0]}', ' '.join(param[1:])])
