@@ -115,6 +115,8 @@ class LLMModelType:
     modern_bert_gte_reranker = 'modern_bert_gte_reranker'
     bge_reranker = 'bge_reranker'
 
+    olmoe = 'olmoe'
+
 
 class BertModelType:
     modern_bert = 'modern_bert'
