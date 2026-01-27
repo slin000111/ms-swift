@@ -1159,6 +1159,19 @@ def test_medgemma3_vision():
     assert response == response2
 
 
+def test_step3_vl():
+    engine = TransformersEngine('stepfun-ai/Step3-VL-10B')
+    images = ['https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg']
+    messages = [{
+        'role': 'user',
+        'content': 'Describe this image',
+    }]
+    response = _infer_model(engine, messages=messages, images=images)
+    engine.template.template_backend = 'jinja'
+    response2 = _infer_model(engine, messages=messages, images=images)
+    assert response == response2
+
+
 if __name__ == '__main__':
     from swift.infer_engine import TransformersEngine, RequestConfig
     from swift.utils import get_logger, seed_everything
@@ -1225,7 +1238,7 @@ if __name__ == '__main__':
     # test_interns1()
     # test_internvl3_5()
     # test_minicpmv4_5()
-    test_qwen3_vl()
+    # test_qwen3_vl()
     # test_keye_vl_1_5()
     # test_internvl3_hf()
     # test_internvl3_5_hf()
@@ -1242,3 +1255,4 @@ if __name__ == '__main__':
     # test_mistral_2512_thinking()
     # test_hunyuan_ocr()
     # test_medgemma3_vision()
+    test_step3_vl()

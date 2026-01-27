@@ -3,7 +3,9 @@ import itertools
 from functools import partial
 from typing import Any, Dict, List, Literal, Optional
 
-from swift.utils import get_env_args
+import torch
+
+from swift.utils import get_env_args, to_float_dtype
 from ..base import Template
 from ..constant import MLLMTemplateType
 from ..register import TemplateMeta, register_template
@@ -296,4 +298,87 @@ register_template(
         system_prefix=['<s><|BOT|>system\n{{SYSTEM}}<|EOT|>'],
         chat_sep=['<|EOT|>'],
         suffix=['<|EOT|>'],
+    ))
+
+
+class Step3VLTemplate(Template):
+    use_model = True
+    support_padding_free = True
+    placeholder_tokens = ['<im_patch>']
+
+    def replace_tag(self, media_type: Literal['image', 'video', 'audio'], index: int,
+                    inputs: StdTemplateInputs) -> List[Context]:
+        assert media_type == 'image'
+        return ['<im_patch>']
+
+    def _encode(self, inputs: StdTemplateInputs) -> Dict[str, Any]:
+        encoded = super()._encode(inputs)
+        input_ids = encoded['input_ids']
+        labels = encoded['labels']
+        loss_scale = encoded.get('loss_scale', None)
+
+        images = inputs.images
+        if images:
+            processor = self.processor
+            image_token_id = self._tokenize('<im_patch>')
+            idx_list = findall(input_ids, image_token_id)
+            processor = self.processor
+            splitted_images_data = processor._split_images(images)
+            pixel_values_lst = []
+            patch_pixel_values_lst = []
+            patch_newline_mask_lst = []
+            image_repl_ids_lst = []
+            num_patches = []
+            for raw_img, img_patches, patch_newline_mask in splitted_images_data:
+                pixel_values_lst.extend(processor._convert_images_to_pixel_values([raw_img]))
+                if len(img_patches) > 0:
+                    patch_pixel_values_lst.extend(processor._convert_images_to_pixel_values(img_patches, is_patch=True))
+                num_patches.append(len(img_patches))
+                _, image_repl_ids = processor._get_image_repl_features(1, len(img_patches), patch_newline_mask)
+                image_repl_ids_lst.append(image_repl_ids)
+                if patch_newline_mask is not None:
+                    patch_newline_mask_lst.extend(patch_newline_mask)
+
+            image_inputs = {
+                'pixel_values': torch.cat(pixel_values_lst),
+                'num_patches': num_patches,
+            }
+            if patch_pixel_values_lst:
+                image_inputs['patch_pixel_values'] = torch.cat(patch_pixel_values_lst)
+            if patch_newline_mask_lst:
+                image_inputs['patch_newline_mask'] = torch.tensor(patch_newline_mask_lst, dtype=torch.bool)
+            image_inputs = to_float_dtype(image_inputs, self.model_info.torch_dtype)
+
+            def _get_new_tokens(i):
+                return image_repl_ids_lst[i]
+
+            input_ids, labels, loss_scale = self._extend_tokens(input_ids, labels, loss_scale, idx_list,
+                                                                _get_new_tokens)
+
+        encoded['input_ids'] = input_ids
+        encoded['labels'] = labels
+        encoded['loss_scale'] = loss_scale
+        encoded.update(image_inputs)
+        return encoded
+
+    def _data_collator_mm_data(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+        res = super()._data_collator_mm_data(batch)
+        num_patches = self.gather_list(batch, 'num_patches')
+        if num_patches:
+            res['num_patches'] = num_patches
+        patch_pixel_values = [b['patch_pixel_values'] for b in batch if b.get('patch_pixel_values') is not None]
+        patch_newline_mask = [b['patch_newline_mask'] for b in batch if b.get('patch_newline_mask') is not None]
+        if patch_pixel_values:
+            res['patch_pixel_values'] = torch.concat(patch_pixel_values)
+            res['patch_newline_mask'] = torch.concat(patch_newline_mask)
+        return res
+
+
+register_template(
+    QwenTemplateMeta(
+        MLLMTemplateType.step3_vl,
+        template_cls=Step3VLTemplate,
+        default_system=None,
+        is_thinking=True,
+        thinking_prefix='<think>\n',
     ))
