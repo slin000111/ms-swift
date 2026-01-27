@@ -86,6 +86,7 @@ class MLLMModelArch:
     midashenglm = 'midashenglm'
     step_audio2_mini = 'step_audio2_mini'
     hunyuan_vl = 'hunyuan_vl'
+    step3_vl = 'step3_vl'
 
 
 class ModelArch(LLMModelArch, MLLMModelArch):
@@ -732,6 +733,14 @@ register_model_arch(
         language_model='model',
         aligner='vit.perceive',
         vision_tower='vit',
+    ))
+
+register_model_arch(
+    MultiModelKeys(
+        MLLMModelArch.step3_vl,
+        language_model=['model', 'lm_head'],
+        aligner='vit_large_projector',
+        vision_tower='vision_model',
     ))
 
 
