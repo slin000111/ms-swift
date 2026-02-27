@@ -263,18 +263,6 @@ Yes, refer to [examples/train/grpo/plugin](https://github.com/modelscope/ms-swif
 ### Q82: Why do I get the error when using --torch_dtype float16 (card cannot use bf16): lib/python3.12/site-packages/torch/amp/grad_scaler.py", line 260, in unscale_grads raise ValueError("Attempting to unscale FP16 gradients.") ValueError: Attempting to unscale FP16 gradients.
 FP16 does not support full-parameter training.
 
-### Q83: I have a question. I trained a reward model using Swift (baseline is qwen2.5-7b), but when loading it in PPO or GRPO, it shows an error. The reward model was trained using LoRA.
-```shell
---rlhf_type ppo \
---model Qwen/Qwen2.5-14B-Instruct \
---reward_model /mnt/workspace/output/rm/model --tuner_type lora \
---dataset 'AI-ModelScope/alpaca-gpt4-data-zh#20000' --torch_dtype float32 --num_train_epochs 1 \
---per_device_train_batch_size 1 --per_device_eval_batch_size 1 --learning_rate 1e-5 --lora_rank 8 --lora_alpha 32 \
---target_modules all-linear \
---gradient_accumulation_steps 16 --eval_steps 100 --save_steps 100 \
-```
-The LoRA-trained reward model needs to be merged.
-
 ### Q84: What version of transformers is needed to fine-tune deepseek_vl2? Official docs say <4.42, but it also shows errors with 4.42 and below. Does the peft version need to be lowered too?
 Use `peft==0.11.*`.
 
