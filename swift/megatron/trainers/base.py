@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager, nullcontext
 from functools import partial
 from megatron.core import mpu
+from megatron.core.distributed import DistributedDataParallel as DDP
 from megatron.core.distributed import finalize_model_grads
 from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 from megatron.core.pipeline_parallel import get_forward_backward_func
@@ -22,19 +23,22 @@ from packaging import version
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+from swift.dataset import RowPreprocessor
 from swift.megatron.callbacks import megatron_callbacks_map
 from swift.megatron.model import get_mcore_model
 from swift.megatron.tuners import LoraParallelLinear
-from swift.megatron.utils import (copy_original_module_weight, get_optimizer_param_scheduler, get_padding_to,
-                                  init_persistent_async_worker, load_mcore_checkpoint, maybe_finalize_async_save,
+from swift.megatron.utils import (copy_original_module_weight, disable_forward_pre_hook, enable_forward_pre_hook,
+                                  get_optimizer_param_scheduler, get_padding_to, init_persistent_async_worker,
+                                  initialize_tp_communicators, load_mcore_checkpoint,
+                                  logical_and_across_model_parallel_group, maybe_finalize_async_save,
                                   prepare_mcore_model, reduce_max_stat_across_model_parallel_group,
-                                  save_mcore_checkpoint, wrap_model)
+                                  save_mcore_checkpoint, should_disable_forward_pre_hook, wrap_model)
 from swift.template import Template
 from swift.trainers import dynamic_gradient_checkpointing
 from swift.trainers.utils import patch_modelscope_hub_timeout
-from swift.utils import deep_getattr, get_last_valid_indices, get_logger, is_last_rank, ms_logger_context
+from swift.utils import deep_getattr, get_last_valid_indices, get_logger, is_last_rank, is_master, ms_logger_context
 from .batch_sampler import MegatronPretrainingRandomSampler, MegatronPretrainingSampler
-from .utils import (TrainerState, build_streaming_dataloader, get_batch_on_this_cp_rank, get_batch_on_this_tp_rank,
+from .utils import (TrainerState, build_streaming_dataloader, get_batch_on_this_cp_rank, get_batch_on_this_pp_rank,
                     get_packed_seq_params)
 
 try:
@@ -79,9 +83,13 @@ class BaseMegatronTrainer(ABC):
                 check_local_model_is_latest(args.model_info.model_dir, user_agent=config_info)
 
         self.mcore_013 = version.parse(megatron.core.__version__) >= version.parse('0.13.0rc0')
+        self.mcore_014 = version.parse(megatron.core.__version__) >= version.parse('0.14.0rc0')
         self.callbacks = []
         for callback in args.callbacks:
             self.callbacks.append(megatron_callbacks_map[callback](self))
+
+        if args.tp_comm_overlap:
+            initialize_tp_communicators(args, self.config)
 
         if args.async_save and args.use_persistent_ckpt_worker:
             init_persistent_async_worker()
@@ -115,10 +123,16 @@ class BaseMegatronTrainer(ABC):
         if config.num_moe_experts is not None:
             moe_loss_scale = 1 / args.num_microbatches / n_steps
             track_names = []
-            # TODO: support moe_router_load_balancing_type list
-            if config.moe_router_load_balancing_type in ['aux_loss', 'seq_aux_loss']:
+            if config.moe_router_load_balancing_type == 'aux_loss':
                 track_names.append('load_balancing_loss')
-            if args.moe_z_loss_coeff is not None:
+            elif config.moe_router_load_balancing_type == 'seq_aux_loss':
+                if self.mcore_014:
+                    track_names.append('seq_load_balancing_loss')
+                else:
+                    track_names.append('load_balancing_loss')
+            elif config.moe_router_load_balancing_type == 'global_aux_loss':
+                track_names.append('global_load_balancing_loss')
+            if config.moe_z_loss_coeff is not None:
                 track_names.append('z_loss')
             track_moe_kwargs = {'mtp_num_layers': args.mtp_num_layers} if self.mcore_013 else {}
             track_moe_metrics(
@@ -462,7 +476,7 @@ class BaseMegatronTrainer(ABC):
 
     @staticmethod
     def copy_path(src_path: str, tgt_path: str):
-        if not is_last_rank():
+        if not is_master():
             return
         if not os.path.exists(src_path):
             raise FileNotFoundError(f'Source path does not exist: {src_path}')
@@ -495,7 +509,33 @@ class BaseMegatronTrainer(ABC):
                 self._prepare_vit_gradient_checkpointing(m)
 
         config.grad_scale_func = self.optimizer.scale_loss
+        if isinstance(self.wrapped_models[0], DDP) and args.overlap_grad_reduce:
+            assert config.no_sync_func is None, ('When overlap_grad_reduce is True, config.no_sync_func must be None; '
+                                                 'a custom no_sync_func is not supported when overlapping grad-reduce')
+            config.no_sync_func = [model_chunk.no_sync for model_chunk in self.wrapped_models]
+            if len(self.wrapped_models) == 1:
+                config.no_sync_func = config.no_sync_func[0]
+            if args.align_grad_reduce:
+                config.grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.wrapped_models]
+                if len(self.wrapped_models) == 1:
+                    config.grad_sync_func = config.grad_sync_func[0]
+        if args.overlap_param_gather and args.align_param_gather:
+            config.param_sync_func = [model_chunk.start_param_sync for model_chunk in self.wrapped_models]
+            if len(self.wrapped_models) == 1:
+                config.param_sync_func = config.param_sync_func[0]
         config.finalize_model_grads_func = finalize_model_grads
+        start_iteration = state.iteration
+        pre_hook_enabled = False
+        # Disable forward pre-hook to start training to ensure that errors in checkpoint loading
+        # or random initialization don't propagate to all ranks in first all-gather (which is a
+        # no-op if things work correctly).
+        if should_disable_forward_pre_hook(args):
+            disable_forward_pre_hook(self.wrapped_models, param_sync=False)
+            # Also remove param_sync_func temporarily so that sync calls made in
+            # `forward_backward_func` are no-ops.
+            param_sync_func = config.param_sync_func
+            config.param_sync_func = None
+            pre_hook_enabled = False
 
         self.call_event('on_train_begin')
         train_metrics = {}
@@ -509,8 +549,20 @@ class BaseMegatronTrainer(ABC):
             train_data_iterator, val_data_iterator = self._prepare_data_iterator(train_dataset, val_dataset)
         while state.iteration < args.train_iters:
             self.call_event('on_step_begin')
-            metrics, grad_norm = self.train_step(train_data_iterator)
             maybe_finalize_async_save(args, blocking=False)
+            metrics, grad_norm, update_successful = self.train_step(train_data_iterator)
+            if state.iteration == start_iteration:
+                if update_successful:
+                    # Enable forward pre-hook after training step has successfully run. All subsequent
+                    # forward passes will use the forward pre-hook / `param_sync_func` in
+                    # `forward_backward_func`.
+                    if should_disable_forward_pre_hook(args):
+                        enable_forward_pre_hook(self.wrapped_models)
+                        config.param_sync_func = param_sync_func
+                        pre_hook_enabled = True
+                else:
+                    start_iteration = state.iteration + 1
+
             state.iteration += 1
             self.call_event('on_step_end')
             self._aggregated_metrics(metrics, train_metrics)
@@ -530,16 +582,29 @@ class BaseMegatronTrainer(ABC):
             eval_metrics = None
             if state.should_eval:
                 state.should_eval = False
+                if should_disable_forward_pre_hook(args):
+                    disable_forward_pre_hook(self.wrapped_models)
+                    pre_hook_enabled = False
                 eval_metrics = self.evaluate(val_data_iterator)
                 for m in self.wrapped_models:
                     m.train()
+                if should_disable_forward_pre_hook(args):
+                    enable_forward_pre_hook(self.wrapped_models)
+                    pre_hook_enabled = True
 
             if state.should_save:
                 self._determine_best_metric(eval_metrics)
+                if should_disable_forward_pre_hook(args):
+                    disable_forward_pre_hook(self.wrapped_models)
                 state.should_save = False
                 self.save_checkpoint()
+                if should_disable_forward_pre_hook(args):
+                    enable_forward_pre_hook(self.wrapped_models)
 
         self.call_event('on_train_end')
+        # Close out pre-hooks if using distributed optimizer and overlapped param gather.
+        if pre_hook_enabled:
+            disable_forward_pre_hook(self.wrapped_models)
         maybe_finalize_async_save(args, blocking=True, terminate=True)
 
     def _determine_best_metric(self, metrics) -> bool:
@@ -612,7 +677,7 @@ class BaseMegatronTrainer(ABC):
             if args.tuner_type == 'lora' and args.merge_lora:
                 self.unmerge_lora_adapters()
 
-        if is_last_rank():
+        if is_master():
             self._rotate_checkpoints(args.output_dir)
 
     def _rotate_checkpoints(self, output_dir: str):
@@ -671,7 +736,7 @@ class BaseMegatronTrainer(ABC):
                     data_iterator=data_iterator,
                     model=self.wrapped_models,
                     num_microbatches=self.args.num_microbatches,
-                    seq_length=args.max_length,
+                    seq_length=args.seq_length,
                     micro_batch_size=args.micro_batch_size,
                     forward_only=True,
                 )
@@ -705,16 +770,18 @@ class BaseMegatronTrainer(ABC):
             data_iterator=data_iterator,
             model=self.wrapped_models,
             num_microbatches=args.num_microbatches,
-            seq_length=args.max_length,
+            seq_length=args.seq_length,
             micro_batch_size=args.micro_batch_size,
             forward_only=False,
         )
 
-        _, grad_norm, _ = self.optimizer.step()
+        update_successful, grad_norm, _ = self.optimizer.step()
+        update_successful = logical_and_across_model_parallel_group(update_successful)
         grad_norm = reduce_max_stat_across_model_parallel_group(grad_norm)
-        self.opt_param_scheduler.step(increment=args.global_batch_size)
+        if update_successful:
+            self.opt_param_scheduler.step(increment=args.global_batch_size)
 
-        return metrics, grad_norm
+        return metrics, grad_norm, update_successful
 
     def _aggregated_metrics(self, metrics, total_metrics):
         if 'n_steps' not in total_metrics:
@@ -722,9 +789,9 @@ class BaseMegatronTrainer(ABC):
         total_metrics['n_steps'] += 1
         if not metrics:
             return
-        for key in metrics[0].keys():
-            val = [x[key].view(-1) for x in metrics if key in x]
-            val = torch.stack(val, dim=0)
+        metrics = RowPreprocessor.rows_to_batched(metrics)
+        for key, val in metrics.items():
+            val = torch.stack([v for v in val if v is not None], dim=0)
             if val[0].numel() == 2:
                 val = val.sum(dim=0)
                 if val[1] == 0:
@@ -787,7 +854,7 @@ class BaseMegatronTrainer(ABC):
         pass
 
     def _prepare_batch(self, data, vp_stage=None, num_samples=None):
-        batch = get_batch_on_this_tp_rank(self.args, data, vp_stage=vp_stage)
+        batch = get_batch_on_this_pp_rank(self.args, data, vp_stage=vp_stage)
         if num_samples is None:
             num_samples = batch.pop('num_samples')
         args = self.args
