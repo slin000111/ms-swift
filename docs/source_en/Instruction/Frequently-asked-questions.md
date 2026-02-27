@@ -228,7 +228,7 @@ Set the `--download_mode` parameter.
 The disk space is insufficient, and the model wasn't saved completely.
 
 ### Q72: Is get_default_template_type no longer supported in SWIFT versions 3.0 and later?
-Please check `model.model_meta.templat`e. The information is stored in `model.model_meta` and `model.model_info`.
+Please check `model.model_meta.template`. The information is stored in `model.model_meta` and `model.model_info`.
 
 ### Q73: Is the default model training using left padding?
 Training can use either left or right padding. The default is right padding, while `batch infer` uses left padding.
@@ -538,7 +538,7 @@ These are reserved column names. Please use different column names.
 Add all-router to target_modules as well.
 
 ### Q161: With the script below, can megatron-swift save checkpoints per epoch?
-Yes, please refer to the command-line parameter [save_strategy](https://swift.readthedocs.io/en/latest/Instruction/Command-line-parameters.html).
+Yes, please refer to the command-line parameter [save_strategy](https://swift.readthedocs.io/en/latest/Megatron-SWIFT/Command-line-parameters.html).
 
 ### Q162: I encountered this error. How can I fix it? Installing Apex didn't help.
 ```text
