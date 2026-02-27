@@ -173,8 +173,8 @@ See the streaming parameter description, [Command Line Parameters Documentation]
 ### Q55: Why is tools in "[]" format rather than directly using []? Could you explain why tools uses this "[]" format instead of direct [] notation?
 This is because the underlying pyarrow in datasets has strict type control. For the same reason, the objects part in our official grounding dataset also uses str, otherwise pyarrow would report errors about inconsistent types across rows.
 
-### Q56: Can't this parameter be used? check_dataset_strategy==discard
-This parameter no longer exists in swift3.0, use the `strict` parameter instead.
+### Q56: Is the parameter check_dataset_strategy==discard no longer usable?
+Correct. This parameter was removed in Swift 3.0 and later versions. Use the strict parameter instead.
 
 ### Q57: Getting this error when running sft command:
 ```text
@@ -227,8 +227,8 @@ Set the `--download_mode` parameter.
 ### Q71: How to solve this error: safetensors_rust.SafetensorError: Error while deserializing header: HeaderTooLarge?
 The disk space is insufficient, and the model wasn't saved completely.
 
-### Q72: Does swift3.0 not support get_default_template_type?
-Please check `model.model_meta.template`, the information is available in `model.model_meta` and `model.model_info`.
+### Q72: Is get_default_template_type no longer supported in SWIFT versions 3.0 and later?
+Please check `model.model_meta.templat`e. The information is stored in `model.model_meta` and `model.model_info`.
 
 ### Q73: Is the default model training using left padding?
 Training can use either left or right padding. The default is right padding, while `batch infer` uses left padding.
@@ -245,8 +245,8 @@ The difference is minimal, with Swift additionally supporting multimodality.
 ### Q77: Does Swift currently not support audio modal input training for minicpmo? It shows error: assert media_type in {'image', 'video'}
 Audio is not currently supported.
 
-### Q78: Can Swift fine-tune deepseek R1 671B?
-Yes, the template is integrated, but the process is complicated as it requires converting fp8 to bf16 first.
+### Q78: Can SWIFT be used to fine-tune deepseek R1 671B?
+Yes, please refer to this [example](https://github.com/modelscope/ms-swift/blob/main/examples/megatron/fp8/llm.sh).
 
 ### Q79: Isn't the latest Swift framework supposed to specify the model location using this command? This is the location of the model I've already downloaded, but I don't know why it still tries to download and fails with a git clone error
 ```shell
@@ -549,44 +549,8 @@ These are reserved column names. Please use different column names.
 ### Q160: I have a question about fine-tuning the qwen3-30b-a3b MoE model with LoRA in MS-Swift. The aux_loss barely changes, even when I set aux_loss_coef to 1.
 Add all-router to target_modules as well.
 
-### Q161: With the script below, is it possible to save checkpoints per epoch?
-```shell
-megatron sft \
-    --mcore_model "$MODEL_PATH" \
-    --dataset "$DATA_PATH"  \
-    --tuner_type lora \
-    --lora_rank 8 \
-    --lora_alpha 16 \
-    --target_modules all-linear \
-    --sequence_parallel true \
-    --micro_batch_size 4 \
-    --global_batch_size 128 \
-    --recompute_granularity full \
-    --recompute_method uniform \
-    --recompute_num_layers 1 \
-    --attention_backend flash \
-    --tensor_model_parallel_size 2 \
-    --sequence_parallel true \
-    --cross_entropy_loss_fusion true \
-    --lr 1e-4 \
-    --lr_warmup_fraction 0.05 \
-    --min_lr 1e-5 \
-    --num_train_epochs 2 \
-    --output_dir "$OUTPUT_PATH" \
-    --split_dataset_ratio 0.02 \
-    --save_steps 25 \
-    --max_length 8192 \
-    --finetune false \
-    --dataloader_num_workers 4 \
-    --no_load_rng true \
-    --no_load_optim true \
-    --no_save_optim true \
-    --no_save_rng true \
-    --dataset_num_proc 4 \
-    --model_author swift \
-    --model_name swift-robot
-```
-Saving checkpoints per epoch is not yet supported.
+### Q161: With the script below, can megatron-swift save checkpoints per epoch?
+Yes, please refer to the command-line parameter [save_strategy](https://swift.readthedocs.io/en/latest/Instruction/Command-line-parameters.html).
 
 ### Q162: I encountered this error. How can I fix it? Installing Apex didn't help.
 ```text
@@ -855,8 +819,8 @@ RAY_memory_monitor_refresh_ms=0 CUDA_VISIBLE_DEVICES=1 nohup swift deploy --ckpt
 ```
 Parameters need to be passed from the client side, `request_config = RequestConfig(..., logprobs=True, top_logprobs=2)`.
 
-### Q12: Can we set request timeout time for Swift3.0 deployment inference? What happens if the image URL is invalid?
-You can set the `SWIFT_TIMEOUT` environment variable. Alternatively, you can pass parameters in `InferClient`.
+### Q12: For inference deployment with SWIFT 3.0 and later, is it possible to set a request timeout? The process hangs if an image URL is invalid.
+Set the environment variable `SWIFT_TIMEOUT`. Alternatively, you can pass a parameter to the `InferClient`.
 
 ### Q13: Why can't I get streaming generation with Swift deployed models? I've set stream to True on both server and client side, but it's still not streaming
 It's controlled by the client side. Please check [examples/deploy/client](https://github.com/modelscope/ms-swift/tree/main/examples/deploy/client).

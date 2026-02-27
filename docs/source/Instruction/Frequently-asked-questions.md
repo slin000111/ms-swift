@@ -174,7 +174,7 @@ V100机器要用fp32训练qwen2。
 这是因为datasets的底层pyarrow对于类型管控比较严格。我们官方的grounding数据集的objects部分也是因为这个原因要用str，要不pyarrow就会报错：你每行的类型不一致。
 
 ### Q56: 这个参数不能用吗？check_dataset_strategy==discard
-swift3.0没这个参数了，用`strict`参数。
+swift3.0以后版本没这个参数了，用`strict`参数。
 
 ### Q57: 运行sft命令出现报错如下：
 ```text
@@ -227,7 +227,7 @@ Map: 4%|██ | 9000/203823 [02:18<50:34, 64.19 examples/s]
 ### Q71: 请问这个问题如何解决？safetensors_rust.SafetensorError: Error while deserializing header: HeaderTooLarge
 磁盘空间不足了，模型没有保存完整。
 
-### Q72: swift3.0不支持get_default_template_type是吗？
+### Q72: swift3.0以后版本不支持get_default_template_type是吗？
 请查看`model.model_meta.template`，信息都存在`model.model_meta和model.model_info`。
 
 ### Q73: 请问默认模型训练都是left padding是吧?
@@ -246,7 +246,7 @@ examples下有[例子](https://github.com/modelscope/ms-swift/blob/main/examples
 目前不支持音频。
 
 ### Q78: swift可以微调deepseek R1 671B吗？
-可以，template是接入了的，不过过程会比较麻烦，要先fp8转bf16。
+可以，参考[例子](https://github.com/modelscope/ms-swift/blob/main/examples/megatron/fp8/llm.sh)。
 
 ### Q79: 最新的swift框架不是通过这个命令来指定模型的位置的么？这是我已经下载好的模型位置，不知道为什么还要下载，还下不下来，提示报错git clone
 ```shell
@@ -262,18 +262,6 @@ examples下有[例子](https://github.com/modelscope/ms-swift/blob/main/examples
 
 ### Q82: 请问为什么 --torch_dtype float16 （卡不能使用bf16）会出现报错：lib/python3.12/site-packages/torch/amp/grad_scaler.py", line 260, in _unscale_grads_ raise ValueError("Attempting to unscale FP16 gradients.") ValueError: Attempting to unscale FP16 gradients.
 全参数，不能fp16训练的。
-
-### Q83: 请教一个问题。我用swift训练了一个reward模型（基线是qwen2.5-7b），然后用在ppo或者grpo中加载会报错。reward模型是lora训练的。
-```shell
---rlhf_type ppo \
---model Qwen/Qwen2.5-14B-Instruct \
---reward_model /mnt/workspace/output/rm/model --tuner_type lora \
---dataset 'AI-ModelScope/alpaca-gpt4-data-zh#20000' --torch_dtype float32 --num_train_epochs 1 \
---per_device_train_batch_size 1 --per_device_eval_batch_size 1 --learning_rate 1e-5 --lora_rank 8 --lora_alpha 32 \
---target_modules all-linear \
---gradient_accumulation_steps 16 --eval_steps 100 --save_steps 100 \
-```
-lora训练的reward model需要merge一下。
 
 ### Q84: 各位大佬，请问要微调deepseek_vl2，transformers用什么什么版本？官方文档说<4.42，但是4.42及以下也报错。peft版本也要降低吗？
 `peft==0.11.*`。
@@ -549,44 +537,8 @@ Template的_encode方法。
 ### Q160: 想问下，ms-swift对qwen3-30b-a3b的moe模型lora微调，aux-loss基本没变化，即使设置aux-loss-coef为1也没变化。
 all-router也加到target_modules。
 
-### Q161: 下面的脚本，可以按epoch保存checkpoint吗？
-```shell
-megatron sft \
-    --mcore_model "$MODEL_PATH" \
-    --dataset "$DATA_PATH"  \
-    --tuner_type lora \
-    --lora_rank 8 \
-    --lora_alpha 16 \
-    --target_modules all-linear \
-    --sequence_parallel true \
-    --micro_batch_size 4 \
-    --global_batch_size 128 \
-    --recompute_granularity full \
-    --recompute_method uniform \
-    --recompute_num_layers 1 \
-    --attention_backend flash \
-    --tensor_model_parallel_size 2 \
-    --sequence_parallel true \
-    --cross_entropy_loss_fusion true \
-    --lr 1e-4 \
-    --lr_warmup_fraction 0.05 \
-    --min_lr 1e-5 \
-    --num_train_epochs 2 \
-    --output_dir "$OUTPUT_PATH" \
-    --split_dataset_ratio 0.02 \
-    --save_steps 25 \
-    --max_length 8192 \
-    --finetune false \
-    --dataloader_num_workers 4 \
-    --no_load_rng true \
-    --no_load_optim true \
-    --no_save_optim true \
-    --no_save_rng true \
-    --dataset_num_proc 4 \
-    --model_author swift \
-    --model_name swift-robot
-```
-还没支持按epoch存储。
+### Q161: 下面的脚本，megatron-swift可以按epoch保存checkpoint吗？
+可以，参考命令行参数[save_strategy](https://swift.readthedocs.io/zh-cn/latest/Megatron-SWIFT/Command-line-parameters.html)。
 
 ### Q162: 请问下，遇到这个报错，怎么处理？安装了apex也不行
 ```text
@@ -855,7 +807,7 @@ RAY_memory_monitor_refresh_ms=0 CUDA_VISIBLE_DEVICES=1 nohup swift deploy --ckpt
 ```
 需要客户端传参数，`request_config = RequestConfig(..., logprobs=True, top_logprobs=2)`。
 
-### Q12: swift3.0 部署推理，可以设置请求的超时时间么？如果图片url非法，会等在那里
+### Q12: swift3.0以后版本部署推理，可以设置请求的超时时间么？如果图片url非法，会等在那里
 设置环境变量`SWIFT_TIMEOUT`。或者`InferClient`中可以传参数。
 
 ### Q13: swift部署的模型怎么没法流式生成啊？服务端的stream设为True了，客户端的stream也设为True了，但它就是没法流式生成
